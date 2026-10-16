@@ -1,0 +1,1275 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>우리집 알림장</title>
+<meta name="theme-color" content="#E6F6F0">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="우리집 알림장">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&family=Nunito:wght@600;700&display=swap">
+<style>
+/* Layout: 알림장 노트 — 연한 민트 바탕, 둥근 글꼴. 상단 오늘 요약, 탭으로 시간표·학원비·준비물·설정 전환. 모바일 우선 한 열, 넓으면 두 열. */
+:root{
+  --bg:#E6F6F0; --surface:#FFFFFF; --ink:#1B2A25; --muted:#587069; --line:#CBE5DC;
+  --accent:#1F6B5C; --accent-ink:#FFFFFF; --accent-soft:#E2EFEB;
+  --hl:#FFF1A8; --hl-ink:#3D3300;
+  --bad:#C2362B; --bad-soft:#FBE6E3; --warn:#9A6410; --warn-soft:#FBF0D9; --ok:#1F6B5C; --ok-soft:#E2EFEB;
+  --k1:#3566D0; --k2:#D0542C; --k3:#8448C2; --k4:#178A7B; --k5:#C0366F;
+  --f-display:"Jua","Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-num:"Nunito","Gowun Dodum",system-ui,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1D19; --surface:#172823; --ink:#E3F1EC; --muted:#93AEA5; --line:#27403A;
+  --accent:#5FC0A6; --accent-ink:#0C1A16; --accent-soft:#1C3530;
+  --hl:#4A4214; --hl-ink:#FFF3B8;
+  --bad:#FF8A7E; --bad-soft:#3A1F1C; --warn:#F2B65A; --warn-soft:#3A2E17; --ok:#5FC0A6; --ok-soft:#1C3530;
+  --k1:#7EA2F0; --k2:#F08A62; --k3:#B78AEB; --k4:#4FC7B6; --k5:#EE7BA8;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1D19; --surface:#172823; --ink:#E3F1EC; --muted:#93AEA5; --line:#27403A;
+  --accent:#5FC0A6; --accent-ink:#0C1A16; --accent-soft:#1C3530;
+  --hl:#4A4214; --hl-ink:#FFF3B8;
+  --bad:#FF8A7E; --bad-soft:#3A1F1C; --warn:#F2B65A; --warn-soft:#3A2E17; --ok:#5FC0A6; --ok-soft:#1C3530;
+  --k1:#7EA2F0; --k2:#F08A62; --k3:#B78AEB; --k4:#4FC7B6; --k5:#EE7BA8;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+img{max-width:100%}
+.gate{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.gate-card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:28px 24px;max-width:380px;width:100%;text-align:center;display:grid;gap:14px}
+.gate-card img{width:84px;height:84px;border-radius:20px;margin:0 auto}
+.gate-err{color:var(--bad);font-size:.9rem}
+.gbtn{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:12px 18px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:1rem;font-weight:600;cursor:pointer;color:var(--ink)}
+.gbtn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:16px;padding-block:20px 64px}
+h1,h2,h3{font-family:var(--f-display);font-weight:400;text-wrap:balance;margin:0}
+h1{font-size:1.9rem;line-height:1.2}
+h2{font-size:1.25rem}
+h3{font-size:1.1rem}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.today-label{font-size:.8rem;letter-spacing:.08em;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:.85rem;white-space:nowrap}
+.chip b{font-family:var(--f-num);font-weight:500}
+.chip.bad{background:var(--bad-soft);border-color:transparent;color:var(--bad)}
+.chip.warn{background:var(--warn-soft);border-color:transparent;color:var(--warn)}
+
+.top{position:relative;padding-right:52px}
+.tabdot{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:5px;border-radius:999px;background:var(--bad);color:#fff;font-family:var(--f-num);font-size:.7rem;vertical-align:1px}
+.nlist{display:flex;flex-direction:column;gap:10px}
+.ncard{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface);display:flex;flex-direction:column;gap:6px;min-width:0}
+.ncard.pinned{background:var(--hl);color:var(--hl-ink);border-color:transparent}
+.ncard.pinned .muted{color:inherit;opacity:.75}
+.ncard header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px}
+.ncard.past{opacity:.7}
+.ncard .ntext{white-space:pre-wrap;overflow-wrap:anywhere;font-size:1rem}
+.ncard footer{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:6px}
+.gear{position:absolute;top:0;right:0;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--muted);display:grid;place-items:center}
+.gear:hover{color:var(--accent);border-color:var(--accent)}
+.gear[aria-current="page"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+nav.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);margin-top:16px;padding-block:8px;border-bottom:1px solid var(--line);display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.tabs button{border:0;background:none;padding:8px 12px;border-radius:8px;white-space:nowrap;color:var(--muted);font-weight:500}
+nav.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink)}
+
+main{margin-top:20px}
+.grid2{display:grid;grid-template-columns:1fr;gap:20px}
+@media (min-width:820px){.grid2{grid-template-columns:1.1fr .9fr}}
+.stack{display:flex;flex-direction:column;gap:20px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;min-width:0}
+.panel-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.hl-panel{background:var(--hl);color:var(--hl-ink);border-color:transparent}
+.hl-panel .muted{color:inherit;opacity:.75}
+
+.dot{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block;background:var(--kc,var(--muted))}
+.kidtag{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:500;color:var(--kc,var(--muted))}
+
+.list{display:flex;flex-direction:column}
+.row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);min-width:0}
+.row:first-child{border-top:0;padding-top:0}
+.row .main{flex:1;min-width:0}
+.row .title{font-weight:500;overflow-wrap:anywhere}
+.row .sub{font-size:.83rem;color:var(--muted);overflow-wrap:anywhere}
+.time{font-family:var(--f-num);font-size:.85rem;min-width:92px;color:var(--muted)}
+.when{font-family:var(--f-num);font-size:.8rem;min-width:54px;text-align:center;line-height:1.25}
+.when b{display:block;font-size:1rem;font-weight:500;color:var(--ink)}
+.bar{width:4px;align-self:stretch;border-radius:2px;background:var(--kc,var(--line));flex:none}
+
+.pill{font-size:.75rem;padding:2px 8px;border-radius:999px;white-space:nowrap;font-weight:500}
+.pill.paid{background:var(--ok-soft);color:var(--ok)}
+.pill.overdue{background:var(--bad-soft);color:var(--bad)}
+.pill.soon{background:var(--warn-soft);color:var(--warn)}
+.pill.later{background:var(--bg);color:var(--muted)}
+.pill.type{background:var(--bg);color:var(--muted)}
+
+.btn{border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:8px;font-size:.88rem;font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.ghost{border-color:transparent;background:none;color:var(--muted)}
+.btn.danger{color:var(--bad)}
+.btn.armed{background:var(--bad);color:#fff;border-color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:default}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+
+.kidblock{display:flex;flex-direction:column;gap:2px}
+.kidblock + .kidblock{margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
+.kidname{display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:6px}
+
+/* 주간 시간표 */
+.week-scroll{overflow-x:auto;margin-inline:-4px;padding-inline:4px}
+.week{display:grid;grid-template-columns:repeat(7,minmax(118px,1fr));gap:8px;min-width:860px}
+.day{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px;min-height:160px;display:flex;flex-direction:column;gap:6px}
+.day.is-today{border-color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+.day h3{font-size:1rem;display:flex;justify-content:space-between}
+.blk{border-left:4px solid var(--kc);background:var(--bg);border-radius:6px;padding:6px 8px;font-size:.85rem}
+.blk .t{font-family:var(--f-num);font-size:.75rem;color:var(--muted)}
+.blk.clash{outline:1.5px dashed var(--bad)}
+.blk.dm{background:none;border-left-style:dotted}
+.filter.seg{gap:0}
+.filter.seg button{border-radius:0}
+.filter.seg button:first-child{border-radius:999px 0 0 999px}
+.filter.seg button:last-child{border-radius:0 999px 999px 0;border-left:0}
+.vacband{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:10px 14px;border-radius:var(--r);background:var(--accent-soft);margin-bottom:16px;font-size:.9rem}
+.vacband b{font-family:var(--f-display);font-weight:400;font-size:1.05rem}
+.blk.off{opacity:.45;text-decoration:line-through}
+.filter{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.filter button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 12px;font-size:.85rem;display:inline-flex;align-items:center;gap:6px}
+.filter button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+
+/* 요일별 시간표 그림 */
+.gwrap{overflow-x:auto;padding-bottom:4px}
+.ggrid{display:grid;gap:0 6px;min-width:600px}
+.gday{display:flex;flex-direction:column;min-width:0}
+.ghead{font-family:var(--f-display);text-align:center;padding-block:4px 8px;font-size:1.05rem}
+.ghead.is-today{color:var(--accent)}
+.ghead.is-today::after{content:" 오늘";font-size:.72rem;font-family:var(--f-body)}
+.gcol{position:relative;background-color:var(--surface);border:1px solid var(--line);border-radius:8px;background-image:repeating-linear-gradient(to bottom,var(--line) 0 1px,transparent 1px 64px)}
+.gaxis .gcol{background:none;border-color:transparent}
+.gaxis span{position:absolute;right:6px;transform:translateY(-50%);font-family:var(--f-num);font-size:.72rem;color:var(--muted)}
+.gaxis span:first-child{transform:none}
+.gblk{position:absolute;border-radius:6px;background:color-mix(in srgb,var(--kc) 16%,var(--surface));border-left:4px solid var(--kc);padding:3px 6px;font-size:.76rem;line-height:1.25;overflow:hidden;color:var(--ink)}
+.gblk b{display:block;font-weight:600;overflow-wrap:anywhere}
+[hidden]{display:none!important}
+.gblk span{color:var(--muted);font-size:.7rem}
+.gblk.clash{outline:1.5px dashed var(--bad);outline-offset:-1px}
+.gblk .gwho,.gmark b,.gshut b{display:block;color:var(--accent);font-weight:600;font-size:.72rem}
+.gmark b,.gshut b{display:inline}
+.gshut{position:absolute;border-radius:4px;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--kc) 10%,transparent) 0 6px,transparent 6px 12px);border-left:2px dashed var(--kc);padding:1px 5px;font-size:.68rem;line-height:1.2;color:var(--muted);overflow:hidden}
+.gmark{position:absolute;border-top:2px dotted var(--kc);padding:1px 4px;font-size:.7rem;line-height:1.2;color:var(--ink);overflow:hidden;background:color-mix(in srgb,var(--surface) 85%,transparent)}
+.gcol .dim{opacity:.22}
+
+/* 학원비 */
+.sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.sum div{min-width:0}
+.sum .lab{font-size:.78rem;color:var(--muted);letter-spacing:.04em}
+.sum .val{font-family:var(--f-num);font-size:1.25rem;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.meter{height:8px;border-radius:4px;background:var(--bg);overflow:hidden;margin-top:12px}
+.meter i{display:block;height:100%;background:var(--accent)}
+.monthnav{display:flex;align-items:center;gap:6px}
+.amt{font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.who{font-weight:600;color:var(--accent)}
+.who.none,.warn-text{color:var(--warn)}
+.pill.fam{background:var(--k5);color:var(--surface)}
+.pill.hw{background:var(--k3);color:var(--surface)}
+.segopt{display:inline-flex}
+.segopt input{position:absolute;opacity:0;width:1px;height:1px}
+.segopt span{border:1px solid var(--line);background:var(--surface);padding:6px 14px;font-size:.9rem;color:var(--ink);cursor:pointer}
+.segopt:first-child span{border-radius:999px 0 0 999px}
+.segopt:last-child span{border-radius:0 999px 999px 0;border-left:0}
+.segopt input:checked + span{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.segopt input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.hwline{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;margin-top:4px;font-size:.83rem}
+.hwitem{display:inline-flex;align-items:center;gap:5px}
+.hwitem input{width:16px;height:16px}
+.whoedit{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:4px;font-size:.83rem;color:var(--muted)}
+.whoedit select{font-size:.85rem;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--accent);font-weight:600}
+.whoedit select.unset{color:var(--warn);border-color:var(--warn)}
+.route .r-ride .time,.route .r-back .time,.route .r-dismiss .time{color:var(--ink)}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);flex:none}
+.done .title{text-decoration:line-through;color:var(--muted)}
+
+.empty{padding:18px;border:1px dashed var(--line);border-radius:var(--r);color:var(--muted);text-align:center;font-size:.9rem}
+
+/* 모달 */
+.scrim{position:fixed;inset:0;background:rgba(10,14,12,.45);z-index:20;display:flex;align-items:flex-end;justify-content:center;padding:16px}
+@media (min-width:640px){.scrim{align-items:center}}
+.sheet{background:var(--surface);border-radius:14px;width:100%;max-width:560px;max-height:calc(100% - 16px);overflow:auto;padding:18px}
+.sheet header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:8px}
+.form{display:grid;gap:12px}
+.form label{display:grid;gap:4px;font-size:.85rem;color:var(--muted)}
+.form input:not([type=checkbox]),.form select,.form textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:.95rem}
+.form textarea{min-height:140px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.four{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.dayrow{display:grid;grid-template-columns:28px repeat(auto-fit,minmax(104px,1fr));gap:8px;align-items:end}
+.dlab{font-family:var(--f-display);font-size:1.05rem;padding-bottom:8px}
+.fs{border:1px solid var(--line);border-radius:10px;padding:10px 12px 12px;display:grid;gap:10px;margin:0;min-width:0}
+.fs legend{font-size:.85rem;color:var(--ink);font-weight:600;padding:0 4px}
+.form label.check{display:flex;flex-direction:row;align-items:center;gap:8px;color:var(--ink)}
+.days{display:flex;flex-wrap:wrap;gap:6px}
+.days label{display:inline-flex;flex-direction:row;align-items:center;gap:4px;padding:5px 9px;border:1px solid var(--line);border-radius:8px;color:var(--ink)}
+.swatches{display:flex;gap:8px}
+.swatches label{display:inline-flex}
+.swatches input{position:absolute;opacity:0;width:1px;height:1px}
+.swatches span{width:28px;height:28px;border-radius:50%;background:var(--kc);border:3px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
+.swatches input:checked + span{box-shadow:0 0 0 2px var(--ink)}
+.swatches input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.9rem;z-index:30;max-width:calc(100% - 32px)}
+.ai-out{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.ai-out label{display:flex;flex-direction:row;align-items:flex-start;gap:10px;color:var(--ink);padding:8px;border:1px solid var(--line);border-radius:8px}
+.notice{font-size:.85rem;padding:10px 12px;border-radius:8px;background:var(--accent-soft);color:var(--ink)}
+@media (max-width:520px){h1{font-size:1.55rem}.sum .val{font-size:1.05rem}.time{min-width:78px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <div class="gate-card">
+    <img src="icon-192.png" alt="">
+    <h1>우리집 알림장</h1>
+    <p class="muted small" id="gateMsg">로그인 상태를 확인하는 중이에요…</p>
+    <button class="gbtn pri" id="gateIn" hidden>구글 계정으로 로그인</button>
+    <button class="gbtn" id="gateOut" hidden>다른 계정으로 로그인 (로그아웃)</button>
+  </div>
+</div>
+<div class="wrap" hidden>
+  <div class="top">
+    <div>
+      <div class="today-label" id="todayLabel"></div>
+      <h1>우리집 알림장</h1>
+    </div>
+    <div class="chips" id="chips"></div>
+    <button class="gear" id="gear" data-tab="setup" aria-label="설정: 아이·학원 관리" title="설정 · 아이·학원 관리">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-tab="home">오늘</button>
+    <button role="tab" data-tab="week">이번 주</button>
+    <button role="tab" data-tab="notice">가족 공지<span class="tabdot" id="noticeDot" hidden></span></button>
+    <button role="tab" data-tab="events">준비물·숙제</button>
+    <button role="tab" data-tab="grid">요일별 시간표</button>
+    <button role="tab" data-tab="pay">학원비</button>
+  </nav>
+  <main id="main"><div class="empty">알림장을 불러오는 중입니다…</div></main>
+</div>
+
+<div class="scrim" id="modal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <header><h3 id="mTitle"></h3><button class="btn ghost" data-act="close">닫기</button></header>
+    <div id="mBody"></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const KC = ['k1','k2','k3','k4','k5'];
+const DOW = ['일','월','화','수','목','금','토'];
+const WEEK_ORDER = [1,2,3,4,5,6,0];
+const SCHOOL_TYPES = ['준비물','학교숙제','학원숙제','학교행사','시험','상담','제출','휴일','학원휴강'];
+const FAM_TYPES = ['가족일정','병원','생일·기념일','나들이·체험','약속','기타'];
+const EV_TYPES = [...SCHOOL_TYPES, ...FAM_TYPES];
+const isFam = e => FAM_TYPES.includes(e.type);
+const evSort = (a, b) => a.date.localeCompare(b.date) || (a.time||'99').localeCompare(b.time||'99');
+const typeOptions = sel => `<optgroup label="학교·학원">${SCHOOL_TYPES.map(t=>`<option ${t===sel?'selected':''}>${t}</option>`).join('')}</optgroup><optgroup label="가족·생활">${FAM_TYPES.map(t=>`<option ${t===sel?'selected':''}>${t}</option>`).join('')}</optgroup>`;
+const isHw = e => /숙제$/.test(e.type||'');
+const CLASS_TYPES = ['학원숙제','학원휴강'];
+// 그 학원의 다음 수업 날 (숙제 내는 날 기본값)
+function nextClassDate(c, from){
+  for (let i=1; i<=21; i++){ const d = addDays(from, i), s = ymd(d); if ((c.days||[]).includes(d.getDay()) && inSeason(c, s) && !classOff(c, s)) return s; }
+  return ymd(addDays(from, 1));
+}
+const className = id => S.classes.find(c => c.id === id)?.name || '';
+const S = { db:null, sample:null, offline:false, loaded:new Set(), kids:[], classes:[], payments:{}, events:[],
+  tab:'home', weekKid:'all', payMonth:null, showPast:false, save:null, ai:null,
+  user:null, uid:null, names:{}, readOnly:false, family:null, gridWho:'all', terms:[], gridSeason:null, pickups:{}, homeDay:0, hwrules:[], hwdone:{}, evAll:[], notices:[], me:'' };
+try { S.me = localStorage.getItem('me') || ''; } catch {}
+
+/* ---------- 날짜 ---------- */
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const ymOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+const parse = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d||1); };
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const addMonths = (ym,n) => { const d = parse(ym+'-01'); d.setMonth(d.getMonth()+n); return ymOf(d); };
+const dayDiff = (a,b) => Math.round((parse(ymd(a)) - parse(ymd(b))) / 864e5);
+const TODAY = parse(ymd(new Date()));
+const fmtMD = s => { const d = parse(s); return `${d.getMonth()+1}/${d.getDate()} (${DOW[d.getDay()]})`; };
+const won = n => (Number(n)||0).toLocaleString('ko-KR') + '원';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+S.payMonth = ymOf(TODAY);
+
+/* ---------- 데이터 헬퍼 ---------- */
+const kidById = id => S.kids.find(k => k.id === id);
+const kc = id => { const k = kidById(id); return k ? `var(--${k.color||'k1'})` : 'var(--muted)'; };
+const kidName = id => kidById(id)?.name || '공통';
+const activeClasses = () => S.classes.filter(c => c.active !== false);
+function dueDate(c, ym){ const [y,m] = ym.split('-').map(Number); const last = new Date(y,m,0).getDate(); return new Date(y,m-1,Math.min(Number(c.payDay)||1,last)); }
+const payId = (cid, ym) => `${cid}_${ym}`;
+// 회당 단가 학원: 그 달 수업 요일 수 − 휴일(공통·그 아이) − 그 학원 휴강일
+function sessionDates(c, ym){
+  const [y,m] = ym.split('-').map(Number), last = new Date(y,m,0).getDate(), out = [];
+  for (let d=1; d<=last; d++){
+    const dt = new Date(y,m-1,d), s = ymd(dt);
+    if (!(c.days||[]).includes(dt.getDay()) || !inSeason(c, s)) continue;
+    const off = S.events.some(e => e.date===s && ((e.type==='휴일' && (!e.kidId || e.kidId===c.kidId)) || (e.type==='학원휴강' && e.classId===c.id)));
+    if (!off) out.push(s);
+  }
+  return out;
+}
+function feeInfo(c, ym){
+  const p = S.payments[payId(c.id,ym)];
+  if (p?.paidAt && p.amount != null) return {amt:Number(p.amount), how:'납부 금액'};
+  if (p?.override != null) return {amt:Number(p.override), how:'직접 조정'};
+  if (c.feeType === 'session'){ const n = sessionDates(c,ym).length; return {amt:n*(Number(c.fee)||0), how:`예상 ${n}회 × ${won(c.fee)} · 청구 오면 금액 입력`, n, estimate:true}; }
+  return {amt:Number(c.fee)||0, how:''};
+}
+function payLabel(c){
+  if (!c.payType) return c.payMethod ? ' · '+esc(c.payMethod) : '';
+  return ` · ${esc(c.payType)} ${c.payAuto?'자동':'직접'}${c.payFrom?' ('+esc(c.payFrom)+')':''}`;
+}
+const payKey = c => c.payType ? `${c.payType} · ${c.payFrom||'어느 '+(c.payType==='카드'?'카드':'계좌')+'인지 미입력'}` : (c.payMethod || '납부 방법 미입력');
+const isPaid = (c, ym) => !!S.payments[payId(c.id,ym)]?.paidAt;
+function payStatus(c, ym){
+  if (isPaid(c,ym)) return {key:'paid', label:'납부 완료'};
+  const d = dayDiff(dueDate(c,ym), TODAY);
+  if (d < 0) return {key:'overdue', label: c.payAuto ? '출금일 지남 · 확인' : `${-d}일 지남`};
+  if (d === 0) return {key:'overdue', label: c.payAuto ? '오늘 자동 출금' : '오늘 납부일'};
+  if (d <= 5) return {key:'soon', label:`D-${d}`};
+  return {key:'later', label:`D-${d}`};
+}
+function payItems(ym){
+  // 학기/방학 구분 학원: 회당 단가면 그 달 해당 기간 수업이 있을 때, 월 고정이면 납부일이 해당 기간일 때만 청구
+  return activeClasses().filter(c => (!c.since || c.since <= ym) && c.feeType !== 'none'
+      && (!c.season || c.season === 'both' || (c.feeType === 'session' ? sessionDates(c, ym).length > 0 : inSeason(c, ymd(dueDate(c, ym))))))
+    .map(c => ({c, ym, due:dueDate(c,ym), st:payStatus(c,ym)}))
+    .sort((a,b) => a.due - b.due);
+}
+function upcomingPays(){ // 지난달·이번달·다음달 중 미납이면서 7일 이내/지난 것
+  const cur = ymOf(TODAY), out = [];
+  for (const ym of [addMonths(cur,-1), cur, addMonths(cur,1)])
+    for (const it of payItems(ym)) if (it.st.key !== 'paid' && dayDiff(it.due, TODAY) <= 7) out.push(it);
+  return out.sort((a,b) => a.due - b.due);
+}
+// 요일마다 시간이 다른 학원은 times 배열 [{d, start, end}]에 요일별 시간을 둔다
+// 셔틀: shuttle·ridePlace·backPlace, 시간은 ride(탑승)·back(하차). 데리러 가는 사람은 pick [{d, who}]
+const slot = (c, dow) => {
+  const t = (Array.isArray(c.times) && c.times.find(x => x.d === dow)) || {};
+  const pk = Array.isArray(c.pick) && c.pick.find(x => x.d === dow);
+  return {start:t.start||c.start||'', end:t.end||c.end||'',
+    ride: c.shuttle ? (t.ride||c.ride||'') : '', back: c.shuttle ? (t.back||c.back||'') : '', who: pk?.who || ''};
+};
+const DEFAULT_FAMILY = ['엄마','아빠','할머니'];
+const WHO_EXTRA = ['혼자 귀가','다음 학원으로 이동','돌봄교실'];
+const family = () => (S.family && S.family.length) ? S.family : DEFAULT_FAMILY;
+const whoOptions = sel => `<option value="">미정</option>` + [...family(), ...WHO_EXTRA].map(w=>`<option ${w===sel?'selected':''}>${esc(w)}</option>`).join('')
+  + (sel && ![...family(), ...WHO_EXTRA].includes(sel) ? `<option selected>${esc(sel)}</option>` : '');
+const dismissOf = (k, dow) => (k.dismiss||[]).find(x => x.d === dow && x.time);
+const offDay = (kidId, s) => S.events.some(e => e.date===s && e.type==='휴일' && (!e.kidId || e.kidId===kidId));
+const classOff = (c, s) => offDay(c.kidId, s) || S.events.some(e => e.date===s && e.type==='학원휴강' && e.classId===c.id);
+/* 방학: terms 컬렉션 {name, start, end, kidId('' = 모든 아이)}. 학원 season: 'both' | 'term'(학기 중만) | 'vac'(방학 중만) */
+const termOf = (kidId, s) => S.terms.find(t => t.start && t.end && s >= t.start && s <= t.end && (!t.kidId || t.kidId === kidId));
+const isVac = (kidId, s) => !!termOf(kidId, s);
+const inSeason = (c, s) => c.season === 'term' ? !isVac(c.kidId, s) : c.season === 'vac' ? isVac(c.kidId, s) : true;
+const SEASON_LABEL = {term:'학기 중만', vac:'방학 중만'};
+const vacDismissOf = (k, dow) => (k.vacDismiss||[]).find(x => x.d === dow && x.time);
+const dismissOn = (k, date) => isVac(k.id, ymd(date)) ? vacDismissOf(k, date.getDay()) : dismissOf(k, date.getDay());
+// 날짜 기준: 그날 실제로 가는 학원 (학기/방학·휴일·휴강 반영)
+const classesOnDate = (date, kid) => classesOn(date.getDay(), kid).filter(c => inSeason(c, ymd(date)) && !classOff(c, ymd(date)));
+const nextTerm = () => S.terms.filter(t => t.end >= ymd(TODAY)).sort((a,b) => a.start.localeCompare(b.start))[0];
+// 한 아이의 하루 동선: 하교 → 셔틀 탑승 → 수업 → 셔틀 하차, 시간순
+// 그날만 바뀐 픽업 담당: pickups/{YYYY-MM-DD}_{dm-아이id | c-학원id} {date, key, who}
+const whoOn = (s, key, base) => { const o = S.pickups[`${s}_${key}`]; return o ? {who:o.who||'', changed:true, base, key, date:s} : {who:base||'', changed:false, base:base||'', key, date:s}; };
+function routeFor(k, date){
+  const s = ymd(date), dow = date.getDay();
+  if (offDay(k.id, s)) return {off:true, items:[]};
+  const items = [];
+  const vac = isVac(k.id, s), dm = dismissOn(k, date);
+  if (dm) items.push({t:dm.time, kind:'dismiss', label: vac ? '돌봄·방과후 끝' : '하교', title:'하교', place: (vac ? k.vacPlace : k.dismissPlace) || '', ...whoOn(s, 'dm-'+k.id, dm.who), need:true, k});
+  classesOnDate(date, k.id).forEach(c => {
+    const x = slot(c, dow), w = whoOn(s, 'c-'+c.id, x.who);
+    if (x.ride) items.push({t:x.ride, kind:'ride', label:'셔틀 탑승', title:c.name, place:c.ridePlace||'', k, c});
+    items.push({t:x.start, end:x.end, kind:'class', label:'수업', title:c.name, memo:c.memo, ...(x.back ? {who:''} : w), need: !x.back, place:c.name, k, c, day:s});
+    if (x.back) items.push({t:x.back, kind:'back', label:'셔틀 하차', title:c.name, place:c.backPlace||'', ...w, need:true, k, c});
+  });
+  return {off:false, items: items.sort((a,b) => a.t.localeCompare(b.t))};
+}
+// 데리러 가는 일: 가족별로 묶고, 담당이 비어 있으면 '담당 미정'
+function pickupTasks(date){
+  const fam = family(), groups = {};
+  sortedKids().forEach(k => routeFor(k, date).items.forEach(it => {
+    if (!it.need) return;
+    if (it.who && !fam.includes(it.who)) return; // 혼자 귀가·다음 학원 등은 데리러 갈 일 없음
+    const g = it.who || '담당 미정';
+    (groups[g] ||= []).push({t: it.kind==='class' ? it.end : it.t, kid:k, what: it.kind==='dismiss' ? it.label : it.kind==='back' ? `${it.title} 셔틀 하차` : `${it.title} 끝`, place: it.place});
+  }));
+  Object.values(groups).forEach(a => a.sort((x,y) => x.t.localeCompare(y.t)));
+  return groups;
+}
+const tm = s => { const [h,m] = String(s||'0:0').split(':').map(Number); return (h||0)*60 + (m||0); };
+const hasEach = c => Array.isArray(c.times) && c.times.length > 0;
+const classesOn = (dow, kid) => activeClasses().filter(c => (c.days||[]).includes(dow) && (!kid || kid==='all' || c.kidId===kid))
+  .sort((a,b) => slot(a,dow).start.localeCompare(slot(b,dow).start));
+const timeText = c => hasEach(c)
+  ? WEEK_ORDER.filter(d=>(c.days||[]).includes(d)).map(d=>{const s=slot(c,d); return `${DOW[d]} ${s.start}–${s.end}`;}).join(', ')
+  : `${WEEK_ORDER.filter(d=>(c.days||[]).includes(d)).map(d=>DOW[d]).join('·')} ${c.start||''}–${c.end||''}`;
+const eventsOn = s => S.evAll.filter(e => e.date === s);
+/* 매주 반복 숙제: hwrules {type, kidId, classId, title, note, mode:'class'(그 학원 수업 날마다)|'days', days:[d], start}
+   했는지 여부는 hwdone/{규칙id}_{날짜} 문서로 남긴다. 화면에는 지난 7일~앞으로 3주만 펼쳐 보여 준다. */
+function ruleDates(r, from, to){
+  const out = [], c = r.classId ? S.classes.find(x => x.id === r.classId) : null;
+  if (r.classId && (!c || c.active === false)) return out;
+  for (let d = new Date(from); d <= to; d = addDays(d, 1)){
+    const s = ymd(d);
+    if (r.start && s < r.start) continue;
+    if (r.mode === 'class' && c){ if ((c.days||[]).includes(d.getDay()) && inSeason(c, s) && !classOff(c, s)) out.push(s); }
+    else if ((r.days||[]).includes(d.getDay()) && !offDay(r.kidId, s) && (!c || inSeason(c, s))) out.push(s);
+  }
+  return out;
+}
+function hwInstances(){
+  const from = addDays(TODAY, -7), to = addDays(TODAY, 21);
+  return S.hwrules.flatMap(r => ruleDates(r, from, to).map(s => {
+    const dn = S.hwdone[`${r.id}_${s}`];
+    return {id:`R_${r.id}_${s}`, rule:r.id, repeat:true, type:r.type||'학원숙제', kidId:r.kidId||'', classId:r.classId||'', title:r.title, note:r.note||'', date:s, done:!!dn, doneBy:dn?.by||''};
+  }));
+}
+const sortedKids = () => [...S.kids].sort((a,b) => (a.order||0)-(b.order||0));
+const who = id => !id ? '' : id === S.uid ? '나' : (S.names[id] || '가족');
+async function resolveNames(){
+  if (!S.user) return;
+  const ids = [...new Set([...Object.values(S.payments).map(p=>p.paidBy), ...S.events.map(e=>e.doneBy)])].filter(id => id && id !== S.uid && !(id in S.names));
+  if (!ids.length) return;
+  try { const ps = await S.user.profiles(ids); ids.forEach(id => S.names[id] = ps?.[id]?.name || ''); render(); } catch {}
+}
+
+/* ---------- 렌더 ---------- */
+function render(){
+  S.evAll = S.loaded.size >= 10 ? [...S.events, ...hwInstances()] : S.events;
+  const nNew = newNotices().length, dot = document.getElementById('noticeDot');
+  dot.hidden = !nNew; dot.textContent = nNew || '';
+  document.getElementById('todayLabel').textContent = `${TODAY.getFullYear()}년 ${TODAY.getMonth()+1}월 ${TODAY.getDate()}일 ${DOW[TODAY.getDay()]}요일`;
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)));
+  const gear = document.getElementById('gear'); if (S.tab === 'setup') gear.setAttribute('aria-current', 'page'); else gear.removeAttribute('aria-current');
+  renderChips();
+  const main = document.getElementById('main');
+  if (S.offline){ main.innerHTML = `<div class="empty">이 화면에서는 저장소에 연결할 수 없습니다. claude.ai에 로그인한 상태로 이 알림장 링크를 열어 주세요.</div>`; return; }
+  if (S.loaded.size < 10){ main.innerHTML = `<div class="empty">알림장을 불러오는 중입니다…</div>`; return; }
+  main.innerHTML = (S.readOnly ? `<div class="notice" style="margin-bottom:16px">보기 전용으로 열려 있어요. 체크하거나 고치려면 알림장 주인에게 ‘편집자’로 초대해 달라고 해 주세요.</div>` : '')
+    + ({home:viewHome, week:viewWeek, notice:viewNotices, grid:viewGrid, pay:viewPay, events:viewEvents, setup:viewSetup}[S.tab])();
+}
+/* ---------- 가족 공지: notices {text, from(가족 이름), by(계정 id), at, pinned, acks:{이름: 시각}} ---------- */
+// 기간: start~end (둘 다 선택). 끝난 공지는 '지난 공지'로, 시작 전 공지는 '예정'으로 나눈다
+const nStatus = n => { const t = ymd(TODAY); return n.end && n.end < t ? 'past' : n.start && n.start > t ? 'future' : 'active'; };
+const periodText = n => {
+  if (!n.start && !n.end) return '';
+  const range = n.start && n.start === n.end ? fmtMD(n.start) : `${n.start ? fmtMD(n.start) : ''}~${n.end ? fmtMD(n.end) : ''}`, st = nStatus(n);
+  const left = n.end && st === 'active' ? dayDiff(parse(n.end), TODAY) : null;
+  const tag = st === 'past' ? '끝남' : st === 'future' ? `${dayDiff(parse(n.start), TODAY)}일 뒤 시작` : left === 0 ? '오늘까지' : left != null ? `${left}일 남음` : '진행 중';
+  return `<span class="pill ${st==='past'?'later':st==='future'?'type':'soon'}">${range} · ${tag}</span>`;
+};
+// 최근 7일 안에 다른 가족이 올렸고, 내가 아직 '확인' 안 한 진행 중 공지
+const newNotices = () => !S.me ? [] : S.notices.filter(n => nStatus(n) === 'active' && n.from !== S.me && !(n.acks||{})[S.me] && n.at && dayDiff(TODAY, new Date(n.at)) <= 7);
+function whenText(iso){
+  if (!iso) return '';
+  const d = new Date(iso), t = `${pad(d.getHours())}:${pad(d.getMinutes())}`, n = dayDiff(TODAY, d);
+  return n === 0 ? `오늘 ${t}` : n === 1 ? `어제 ${t}` : `${fmtMD(ymd(d))} ${t}`;
+}
+function noticeCard(n, compact){
+  const acks = Object.keys(n.acks||{}), mine = n.by && n.by === S.uid, canAck = S.me && S.me !== n.from && !acks.includes(S.me) && !S.readOnly;
+  const st = nStatus(n);
+  return `<article class="ncard ${n.pinned && st==='active'?'pinned':''} ${st==='past'?'past':''}">
+    <header><b>${esc(n.from || '가족')}</b> <span class="muted small">${whenText(n.at)}</span>${n.pinned?' <span class="pill soon">중요</span>':''} ${periodText(n)}</header>
+    <div class="ntext">${esc(n.text)}</div>
+    ${compact ? '' : `<footer><span class="small muted">${acks.length ? '확인: ' + acks.map(esc).join(', ') : '아직 확인한 가족이 없어요'}</span>
+      <span class="btns">${canAck ? `<button class="btn small pri" data-act="nAck" data-id="${n.id}">확인했어요</button>` : ''}
+      ${S.readOnly ? '' : `<button class="btn ghost small" data-act="nEdit" data-id="${n.id}">기간·내용 수정</button><button class="btn ghost small" data-act="nPin" data-id="${n.id}">${n.pinned?'고정 풀기':'중요 고정'}</button>`}
+      ${mine || S.user?.isOwner?.() ? `<button class="btn ghost small danger" data-act="del" data-kind="notices" data-id="${n.id}">삭제</button>` : ''}</span></footer>`}
+  </article>`;
+}
+function viewNotices(){
+  const fam = family(), me = fam.includes(S.me) ? S.me : '';
+  const sorted = [...S.notices].sort((a,b) => (b.pinned?1:0) - (a.pinned?1:0) || (b.at||'').localeCompare(a.at||''));
+  const active = sorted.filter(n => nStatus(n) === 'active');
+  const future = sorted.filter(n => nStatus(n) === 'future').sort((a,b) => a.start.localeCompare(b.start));
+  const past = sorted.filter(n => nStatus(n) === 'past').sort((a,b) => b.end.localeCompare(a.end)).slice(0, 40);
+  const compose = S.readOnly ? '' : `<section class="panel"><form class="form" id="nf">
+    <div class="two"><label>나는<select id="n-me"><option value="">선택해 주세요</option>${fam.map(w=>`<option ${w===me?'selected':''}>${esc(w)}</option>`).join('')}</select></label>
+      <label class="check" style="align-self:end;padding-bottom:8px"><input type="checkbox" id="n-pin"> 중요 (맨 위에 고정)</label></div>
+    <label>가족에게 알릴 내용<textarea id="n-text" style="min-height:88px" placeholder="예: 이번 주 금요일은 할머니가 둘째 하원해 주세요 / 다음 주 화요일 첫째 치과 예약했어요"></textarea></label>
+    <div class="two"><label>기간 시작 (선택)<input type="date" id="n-start"></label><label>기간 끝 (선택)<input type="date" id="n-end"></label></div>
+    <div class="btns"><button type="submit" class="btn pri">올리기</button><span class="small muted">기간을 비우면 계속 보여요. 끝 날짜가 지나면 ‘지난 공지’로 넘어가요.</span></div></form></section>`;
+  return `<div class="stack">${compose}
+    <section class="panel"><div class="panel-h"><h2>가족 공지</h2><span class="muted small">진행 중 ${active.length}개</span></div>
+      ${active.length ? `<div class="nlist">${active.map(n => noticeCard(n)).join('')}</div>` : `<div class="empty">지금 진행 중인 공지가 없어요. 픽업 부탁, 병원 예약, 준비물 부탁처럼 가족이 알아야 할 일을 올려 보세요.</div>`}</section>
+    ${future.length ? `<section class="panel"><div class="panel-h"><h2>예정된 공지</h2><span class="muted small">시작일이 되면 위로 올라가요</span></div><div class="nlist">${future.map(n => noticeCard(n)).join('')}</div></section>` : ''}
+    ${past.length ? `<section class="panel"><div class="panel-h"><h2>지난 공지</h2><button class="btn ghost small" data-act="nPast">${S.showPastN ? '접기' : `${past.length}개 보기`}</button></div>${S.showPastN ? `<div class="nlist">${past.map(n => noticeCard(n)).join('')}</div>` : ''}</section>` : ''}</div>`;
+}
+function renderChips(){
+  const el = document.getElementById('chips');
+  if (S.loaded.size < 10){ el.innerHTML=''; return; }
+  const ups = upcomingPays();
+  const over = ups.filter(i => i.st.key==='overdue').length;
+  const soon = ups.length - over;
+  const todayCls = classesOnDate(TODAY).length;
+  const wk = S.evAll.filter(e => !e.done && !e.repeat && dayDiff(parse(e.date),TODAY) >= 0 && dayDiff(parse(e.date),TODAY) <= 7).length;
+  el.innerHTML = `<span class="chip">오늘 학원 <b>${todayCls}</b></span>`
+    + (over ? `<span class="chip bad">납부일 지남 <b>${over}</b></span>` : '')
+    + (soon ? `<span class="chip warn">곧 납부 <b>${soon}</b></span>` : '')
+    + `<span class="chip">7일 내 준비물·숙제 <b>${wk}</b></span>`;
+}
+const kidTag = id => `<span class="kidtag" style="--kc:${kc(id)}"><span class="dot"></span>${esc(kidName(id))}</span>`;
+
+function evRow(e, opts={}){
+  return `<div class="row ${e.done?'done':''}">
+    <input type="checkbox" id="ev-${e.id}" data-act="toggleEv" data-id="${e.id}" ${e.done?'checked':''} aria-label="완료 표시">
+    ${opts.when ? `<div class="when"><b>${parse(e.date).getDate()}</b>${DOW[parse(e.date).getDay()]}</div>` : ''}
+    <div class="main"><div class="title">${e.time ? `<span class="num">${esc(e.time)}</span> ` : ''}${e.classId && e.type==='학원숙제' && className(e.classId) ? `<span class="muted">${esc(className(e.classId))} ·</span> ` : ''}${esc(e.title)}${e.place ? ` <span class="muted small">@ ${esc(e.place)}</span>` : ''}</div>
+      <div class="sub">${kidTag(e.kidId)} · <span class="pill ${isHw(e)?'hw':isFam(e)?'fam':'type'}">${esc(e.type||'기타')}</span>${e.repeat ? ' <span class="pill later">매주</span>' : ''}${isHw(e) && !e.repeat && !e.done && e.date < ymd(TODAY) ?' <span class="pill overdue">기한 지남</span>' : ''}${e.note?' · '+esc(e.note):''}${e.done&&e.doneBy?` · ${esc(who(e.doneBy))} ${isHw(e)?'확인':'챙김'}`:''}</div></div>
+    ${opts.edit!==false ? (e.repeat ? `<button class="btn ghost small" data-act="editRule" data-id="${e.rule}">반복 수정</button>` : `<button class="btn ghost small" data-act="editEv" data-id="${e.id}">수정</button>`) : ''}
+  </div>`;
+}
+function payRow(it, showMonth){
+  const {c, ym, due, st} = it;
+  const p = S.payments[payId(c.id, ym)];
+  const rec = p?.paidAt ? ` · ${p.paidBy?esc(who(p.paidBy))+' ':''}${Number(p.paidAt.slice(5,7))}/${Number(p.paidAt.slice(8))} 납부 기록` : '';
+  const f = feeInfo(c, ym);
+  return `<div class="row">
+    <span class="bar" style="--kc:${kc(c.kidId)}"></span>
+    <div class="main"><div class="title">${esc(c.name)} ${showMonth?`<span class="muted small">${Number(ym.slice(5))}월분</span>`:''}</div>
+      <div class="sub">${esc(kidName(c.kidId))} · ${due.getMonth()+1}/${due.getDate()} 납부${payLabel(c)}${rec}${!c.payAuto && c.payType==='계좌' && c.payTo && st.key!=='paid' ? ` · <button class="btn ghost small" style="padding:0 4px" data-act="copy" data-text="${esc(c.payTo)}">입금계좌 복사</button>` : ''}</div></div>
+    <div style="text-align:right"><button class="amt btn ghost" style="padding:0" data-act="adjust" data-id="${c.id}" data-ym="${ym}" ${st.key==='paid'?'disabled':''} title="이 달 금액 조정">${won(f.amt)}</button>${f.how?`<div class="small muted">${esc(f.how)}</div>`:''}<span class="pill ${st.key}">${st.label}</span></div>
+    ${st.key==='paid'
+      ? `<button class="btn ghost small" data-act="unpay" data-id="${c.id}" data-ym="${ym}">취소</button>`
+      : `<button class="btn pri small" data-act="pay" data-id="${c.id}" data-ym="${ym}">${c.payAuto?'출금 확인':'납부'}</button>`}
+  </div>`;
+}
+
+function routeRow(it){
+  const editable = it.need && it.key && !S.readOnly;
+  const whoTxt = editable ? '' : it.who ? `<span class="who">${family().includes(it.who) ? '데리러: ' : ''}${esc(it.who)}</span>` : (it.need && it.kind!=='class' ? `<span class="who none">데리러 갈 사람 미정</span>` : '');
+  const edit = editable ? `<div class="whoedit"><label>데리러 <select class="whosel ${it.who?'':'unset'}" id="w-${it.date}-${it.key}" data-date="${it.date}" data-key="${it.key}" data-base="${esc(it.base)}">${whoOptions(it.who)}</select></label>
+      ${it.changed ? `<span class="pill soon">이날만 변경</span><button class="btn ghost small" data-act="resetWho" data-id="${it.date}_${it.key}">원래대로 (${esc(it.base||'미정')})</button>` : ''}</div>` : '';
+  // 학원 수업 줄: 이 학원에 남은 숙제를 보여 주고 바로 추가
+  // 반복 숙제는 다음 수업 날까지 낼 것만 (오늘 들은 수업의 숙제)
+  const nextDay = it.kind==='class' ? nextClassDate(it.c, parse(it.day)) : '';
+  const hwList = it.kind==='class' ? S.evAll.filter(e => e.type==='학원숙제' && e.classId===it.c.id && !e.done && e.date >= it.day && (!e.repeat || e.date <= nextDay)).sort((a,b)=>a.date.localeCompare(b.date)) : [];
+  const hw = it.kind==='class' ? `<div class="hwline">${hwList.map(e => `<label class="hwitem"><input type="checkbox" id="hw-${e.id}" data-act="toggleEv" data-id="${e.id}"> ${esc(e.title)} <span class="muted">(${e.date===it.day?'오늘까지':fmtMD(e.date)+'까지'})</span></label>`).join('')}
+      ${S.readOnly ? '' : `<button class="btn ghost small" data-act="hwAdd" data-id="${it.c.id}" data-day="${it.day}">+ 숙제</button>`}</div>` : '';
+  return `<div class="row r-${it.kind}"><span class="time">${esc(it.t)}${it.end?'–'+esc(it.end):''}</span>
+    <div class="main"><div class="title">${it.kind==='class' ? esc(it.title) : `<span class="pill type">${it.label}</span> ${it.kind==='dismiss' ? '' : esc(it.title)}`}</div>
+      <div class="sub">${[it.kind!=='class' && it.place ? esc(it.place) : '', it.memo ? esc(it.memo) : '', whoTxt].filter(Boolean).join(' · ')}</div>${edit}${hw}</div></div>`;
+}
+function viewHome(){
+  if (!S.kids.length) return `<div class="panel"><h2>처음 시작하기</h2><p class="muted">아이를 먼저 등록하고, 아이별로 학원(요일·시간·학원비·납부일)을 넣어 주세요. 그러면 오늘 할 일과 납부 알림이 이 화면에 모입니다.</p><div class="btns"><button class="btn pri" data-act="newKid">아이 등록</button></div></div>`;
+  const tmr = ymd(addDays(TODAY,1));
+  const tmrEv = eventsOn(tmr).filter(e=>!e.done);
+  const tmrCls = classesOnDate(addDays(TODAY,1));
+  const day = addDays(TODAY, S.homeDay), dayWord = S.homeDay ? '내일' : '오늘';
+  const todayEv = eventsOn(ymd(day));
+  const kidsHtml = sortedKids().map(k => {
+    const r = routeFor(k, day);
+    const ev = todayEv.filter(e => e.kidId===k.id);
+    return `<div class="kidblock"><div class="kidname" style="--kc:var(--${k.color||'k1'})"><span class="dot"></span>${esc(k.name)} <span class="muted small">${esc(k.school||'')}</span></div>
+      ${r.off ? `<div class="small muted">${dayWord}은 휴일이에요.</div>` : ''}
+      ${r.items.length||ev.length ? `<div class="list route">${r.items.map(routeRow).join('')}
+      ${ev.map(e=>evRow(e)).join('')}</div>` : (r.off ? '' : `<div class="muted small">${dayWord}은 하교·학원 일정이 없어요.</div>`)}</div>`;
+  }).join('');
+  const picks = pickupTasks(day);
+  const pickOrder = [...family(), '담당 미정'].filter(w => picks[w]);
+  const pickHtml = pickOrder.length ? pickOrder.map(w => `<div class="kidblock"><div class="kidname ${w==='담당 미정'?'warn-text':''}">${esc(w)} <span class="muted small">${picks[w].length}곳</span></div><div class="list">${picks[w].map(p=>`<div class="row"><span class="time">${esc(p.t)}</span><div class="main"><div class="title">${esc(p.kid.name)} ${esc(p.what)}</div>${p.place?`<div class="sub">${esc(p.place)}</div>`:''}</div></div>`).join('')}</div></div>`).join('') : `<div class="empty">${dayWord} 데리러 갈 일정이 없어요.</div>`;
+  const tPicks = pickupTasks(addDays(TODAY,1));
+  const tPickLine = Object.entries(tPicks).map(([w,a]) => `${esc(w)}: ${a.map(p=>`${esc(p.t)} ${esc(p.kid.name)} ${esc(p.what)}`).join(', ')}`).join(' · ');
+  const common = todayEv.filter(e => !e.kidId);
+  const ups = upcomingPays();
+  const soon = S.evAll.filter(e => !e.done && !e.repeat && dayDiff(parse(e.date),TODAY) >= 2 && dayDiff(parse(e.date),TODAY) <= 14).sort(evSort);
+  // 방학 중이거나 2주 안에 방학·개학이면 맨 위에 알려 준다
+  const tdy = ymd(TODAY), cur = S.terms.filter(t => tdy >= t.start && tdy <= t.end), soonT = S.terms.filter(t => t.start > tdy && dayDiff(parse(t.start), TODAY) <= 14);
+  const forWhom = t => t.kidId ? kidName(t.kidId) : '모든 아이';
+  const band = cur.length || soonT.length ? `<div class="vacband">${cur.map(t => `<span><b>${esc(t.name)} 중</b> · ${esc(forWhom(t))} · ${fmtMD(t.end)}까지 (개학 ${fmtMD(ymd(addDays(parse(t.end),1)))})</span>`).join('')}
+      ${soonT.map(t => `<span><b>${dayDiff(parse(t.start), TODAY)}일 뒤 ${esc(t.name)}</b> · ${esc(forWhom(t))} · ${fmtMD(t.start)}부터</span>`).join('')}
+      <button class="btn small" data-season="vac" data-tab-go="grid">방학 시간표 보기</button></div>` : '';
+  return `${band}<div class="grid2">
+    <div class="stack">
+      <section class="panel"><div class="panel-h"><h2>${dayWord} 일정 <span class="muted small">${fmtMD(ymd(day))}</span></h2>
+          <div class="filter seg" style="margin:0"><button aria-pressed="${!S.homeDay}" data-act="homeDay" data-id="0">오늘</button><button aria-pressed="${!!S.homeDay}" data-act="homeDay" data-id="1">내일</button></div></div>
+        ${S.readOnly ? '' : `<p class="small muted" style="margin:-4px 0 10px">데리러 가는 사람을 바꾸면 그날만 바뀌고, 가족 모두에게 바로 보여요.</p>`}${kidsHtml}
+        ${common.length?`<div class="kidblock"><div class="kidname">공통</div><div class="list">${common.map(e=>evRow(e)).join('')}</div></div>`:''}</section>
+      <section class="panel"><div class="panel-h"><h2>다가오는 2주</h2><div class="btns"><button class="btn small pri" data-act="newFam">가족·생활 일정</button><button class="btn small" data-act="newEv">학교 일정·준비물</button></div></div>
+        ${soon.length?`<div class="list">${soon.map(e=>evRow(e,{when:true})).join('')}</div>`:`<div class="empty">2주 안에 잡힌 학교 일정이 없습니다.</div>`}</section>
+    </div>
+    <div class="stack">
+      ${(() => { const pins = S.notices.filter(n => n.pinned && nStatus(n) === 'active').sort((a,b)=>(b.at||'').localeCompare(a.at||'')).slice(0,3), nw = newNotices();
+        return pins.length || nw.length ? `<section class="panel"><div class="panel-h"><h2>가족 공지</h2><button class="btn ghost small" data-tab-go="notice">${nw.length?`새 공지 ${nw.length}개 보기`:'전체 보기'}</button></div>
+          <div class="nlist">${(pins.length ? pins : nw.slice(0,2)).map(n => noticeCard(n, true)).join('')}</div></section>` : ''; })()}
+      <section class="panel"><div class="panel-h"><h2>${dayWord} 누가 데리러 가나</h2><span class="muted small">하교·학원 끝·셔틀 하차</span></div>${pickHtml}</section>
+      <section class="panel hl-panel"><div class="panel-h"><h2>내일 챙길 것</h2><span class="small muted">${fmtMD(tmr)}</span></div>
+        ${tmrEv.length?`<div class="list">${tmrEv.map(e=>evRow(e,{edit:false})).join('')}</div>`:`<div class="small">내일 학교 일정·준비물은 없어요.</div>`}
+        ${tmrCls.length?`<div class="small" style="margin-top:10px">내일 학원: ${tmrCls.map(c=>`${esc(kidName(c.kidId))} ${esc(c.name)} ${esc(slot(c,addDays(TODAY,1).getDay()).start)}`).join(' · ')}</div>`:''}
+        ${tPickLine?`<div class="small" style="margin-top:6px">내일 데리러 가기 — ${tPickLine}</div>`:''}
+      </section>
+      <section class="panel"><div class="panel-h"><h2>납부할 학원비</h2><button class="btn ghost small" data-tab-go="pay">전체 보기</button></div>
+        ${ups.length?`<div class="list">${ups.map(it=>payRow(it,true)).join('')}</div>`:`<div class="empty">7일 안에 낼 학원비가 없습니다.</div>`}</section>
+    </div>
+  </div>`;
+}
+
+function viewWeek(){
+  if (!S.classes.length) return `<div class="empty">아직 등록된 학원이 없습니다. <button class="btn small" data-act="newClass">학원 추가</button></div>`;
+  const filter = kidFilter();
+  const mon = addDays(TODAY, -((TODAY.getDay()+6)%7));
+  const cols = WEEK_ORDER.map((dow,i) => {
+    const date = addDays(mon,i);
+    const cls = classesOn(dow, S.weekKid).filter(c => inSeason(c, ymd(date)));
+    const ev = eventsOn(ymd(date)).filter(e => S.weekKid==='all' || e.kidId===S.weekKid || !e.kidId);
+    const clash = new Set();
+    // 같은 아이 시간이 겹치면 표시
+    for (let a=0;a<cls.length;a++) for (let b=a+1;b<cls.length;b++){
+      const x=cls[a], y=cls[b];
+      const p = slot(x,dow), q = slot(y,dow);
+      if (x.kidId===y.kidId && p.start < q.end && q.start < p.end){ clash.add(x.id); clash.add(y.id); }
+    }
+    return `<div class="day ${dayDiff(date,TODAY)===0?'is-today':''}"><h3><span>${DOW[dow]}</span><span class="num muted small">${date.getMonth()+1}/${date.getDate()}</span></h3>
+      ${sortedKids().filter(k=>S.weekKid==='all'||k.id===S.weekKid).map(k=>{ const dm = dismissOn(k,date); return dm && !offDay(k.id, ymd(date)) ? `<div class="blk dm" style="--kc:${kc(k.id)}"><div class="t">${esc(dm.time)} ${isVac(k.id, ymd(date))?'돌봄·방과후 끝':'하교'}</div>${esc(k.name)}${(w => w.who?` · ${esc(w.who)}${w.changed?' (변경)':''}`:'')(whoOn(ymd(date), 'dm-'+k.id, dm.who))}</div>` : ''; }).join('')}
+      ${cls.map(c=>{ const x = slot(c,dow), off = classOff(c, ymd(date)); return `<div class="blk ${clash.has(c.id)?'clash':''} ${off?'off':''}" style="--kc:${kc(c.kidId)}"><div class="t">${esc(x.start)}–${esc(x.end)}${off?' · 쉼':''}</div>${esc(c.name)}${S.weekKid==='all'?`<div class="t">${esc(kidName(c.kidId))}</div>`:''}${x.ride?`<div class="t">셔틀 ${esc(x.ride)} → ${esc(x.back||'?')}</div>`:''}${(w => w.who?`<div class="t who">${family().includes(w.who)?'데리러 ':''}${esc(w.who)}${w.changed?' (변경)':''}</div>`:'')(whoOn(ymd(date), 'c-'+c.id, x.who))}</div>`; }).join('')}
+      ${ev.map(e=>`<div class="blk" style="--kc:var(--hl)"><div class="t">${esc(e.type)}</div>${esc(e.title)}</div>`).join('')}
+      ${!cls.length&&!ev.length?'<div class="muted small">—</div>':''}</div>`;
+  }).join('');
+  const total = activeClasses().filter(c=>S.weekKid==='all'||c.kidId===S.weekKid).reduce((s,c)=>s+(c.days||[]).length,0);
+  return `${filter}<div class="panel-h"><h2>이번 주</h2><span class="muted small">주 ${total}회 수업 · 점선 테두리는 같은 아이 시간이 겹치는 수업</span></div><div class="week-scroll"><div class="week">${cols}</div></div>`;
+}
+function kidFilter(){
+  return `<div class="filter"><button aria-pressed="${S.weekKid==='all'}" data-act="weekKid" data-id="all">모두</button>${sortedKids().map(k=>`<button aria-pressed="${S.weekKid===k.id}" data-act="weekKid" data-id="${k.id}" style="--kc:var(--${k.color||'k1'})"><span class="dot"></span>${esc(k.name)}</button>`).join('')}</div>`;
+}
+
+/* 시간표 그림: 세로축이 시간, 요일 칸 안에서 아이마다 세로 줄을 나눠 수업을 블록으로 그린다 */
+function viewGrid(){
+  if (!S.classes.length) return `<div class="empty">아직 등록된 학원이 없습니다. <button class="btn small" data-act="newClass">학원 추가</button></div>`;
+  const kids = sortedKids().filter(k => S.weekKid==='all' || k.id===S.weekKid);
+  const season = S.gridSeason || 'term', vac = season === 'vac';
+  const fits = c => !c.season || c.season === 'both' || c.season === season;
+  const cls = activeClasses().filter(c => kids.some(k => k.id===c.kidId) && fits(c));
+  const dismissOf = (k, d) => vac ? vacDismissOf(k, d) : (k.dismiss||[]).find(x => x.d === d && x.time);
+  const classesOn = (d, kid) => cls.filter(c => c.kidId === kid && (c.days||[]).includes(d)).sort((a,b) => slot(a,d).start.localeCompare(slot(b,d).start));
+  const days = WEEK_ORDER.filter(d => (d>=1 && d<=5) || cls.some(c => (c.days||[]).includes(d)));
+  let lo = 24*60, hi = 0;
+  const span = (a, b) => { if (a){ lo = Math.min(lo, tm(a)); hi = Math.max(hi, tm(b||a) + (b?0:30)); } };
+  cls.forEach(c => (c.days||[]).forEach(d => { const s = slot(c,d); if (s.start && s.end){ span(s.ride||s.start, s.back||s.end); span(s.start, s.end); } }));
+  kids.forEach(k => days.forEach(d => { const dm = dismissOf(k,d); if (dm) span(dm.time); }));
+  if (!hi){ lo = 14*60; hi = 19*60; }
+  lo = Math.floor(lo/60)*60; hi = Math.ceil(hi/60)*60; if (hi - lo < 180) hi = lo + 180;
+  const PX = 64/60, H = Math.round((hi-lo)*PX), lanes = Math.max(1, kids.length);
+  const hours = []; for (let t=lo; t<=hi; t+=60) hours.push(t);
+  const axis = `<div class="gday gaxis"><div class="ghead">&nbsp;</div><div class="gcol" style="height:${H}px">${hours.map(t=>`<span style="top:${Math.round((t-lo)*PX)}px">${pad(t/60)}:00</span>`).join('')}</div></div>`;
+  const cols = days.map(d => {
+    const blocks = kids.map((k, li) => {
+      const pos = (a, b, minH) => `top:${Math.round((tm(a)-lo)*PX)}px;height:${Math.max(minH, Math.round((tm(b)-tm(a))*PX) - 2)}px;left:calc(${li} * 100% / ${lanes} + 2px);width:calc(100% / ${lanes} - 4px)`;
+      const dimFor = w => S.gridWho!=='all' && w !== S.gridWho ? 'dim' : '';
+      const ks = classesOn(d, k.id);
+      const dm = dismissOf(k, d);
+      const dmHtml = dm ? `<div class="gmark ${dimFor(dm.who)}" style="--kc:${kc(k.id)};${pos(dm.time, dm.time, 30)}" title="${esc(k.name)} ${vac?'돌봄·방과후 끝':'하교'} ${esc(dm.time)} ${esc(dm.who||'')}"><span class="num">${esc(dm.time)}</span> ${vac?'돌봄 끝':'하교'}${dm.who?`<br><b>${esc(dm.who)}</b>`:''}</div>` : '';
+      return dmHtml + ks.map(c => {
+        const s = slot(c,d); if (!s.start || !s.end) return '';
+        const clash = ks.some(o => { if (o===c) return false; const q = slot(o,d); return s.start < q.end && q.start < s.end; });
+        const ride = s.ride && s.ride < s.start ? `<div class="gshut ${dimFor('')}" style="--kc:${kc(c.kidId)};${pos(s.ride, s.start, 14)}" title="셔틀 탑승 ${esc(s.ride)} ${esc(c.ridePlace||'')}"><span class="num">${esc(s.ride)}</span> 셔틀${c.ridePlace?' · '+esc(c.ridePlace):''}</div>` : '';
+        const back = s.back && s.back > s.end ? `<div class="gshut ${dimFor(s.who)}" style="--kc:${kc(c.kidId)};${pos(s.end, s.back, 14)}" title="셔틀 하차 ${esc(s.back)} ${esc(c.backPlace||'')}"><span class="num">${esc(s.back)}</span> 하차${s.who?` · <b>${esc(s.who)}</b>`:''}</div>` : '';
+        return ride + `<div class="gblk ${clash?'clash':''} ${dimFor(s.back?'':s.who)}" style="--kc:${kc(c.kidId)};${pos(s.start, s.end, 20)}" title="${esc(kidName(c.kidId))} ${esc(c.name)} ${esc(s.start)}–${esc(s.end)}"><b>${esc(c.name)}</b><span class="num">${esc(s.start)}–${esc(s.end)}</span>${!s.back && s.who ? `<span class="gwho">${esc(s.who)}</span>` : ''}</div>` + back;
+      }).join('');
+    }).join('');
+    return `<div class="gday"><div class="ghead ${d===TODAY.getDay()?'is-today':''}">${DOW[d]}</div><div class="gcol" style="height:${H}px">${blocks}</div></div>`;
+  }).join('');
+  const legend = kids.map(k => {
+    const ks = cls.filter(c => c.kidId===k.id);
+    const n = ks.reduce((s,c)=>s+(c.days||[]).length,0);
+    const mins = ks.reduce((s,c)=>s+(c.days||[]).reduce((t,d)=>{const x=slot(c,d); return t+Math.max(0,tm(x.end)-tm(x.start));},0),0);
+    return `<span class="kidtag" style="--kc:var(--${k.color||'k1'})"><span class="dot"></span>${esc(k.name)} <span class="muted">주 ${n}회 · ${Math.floor(mins/60)}시간${mins%60?` ${mins%60}분`:''}</span></span>`;
+  }).join('');
+  const whoFilter = `<div class="filter"><span class="small muted" style="align-self:center">데리러 가는 사람</span><button aria-pressed="${S.gridWho==='all'}" data-act="gridWho" data-id="all">모두</button>${family().map(w=>`<button aria-pressed="${S.gridWho===w}" data-act="gridWho" data-id="${esc(w)}">${esc(w)}</button>`).join('')}</div>`;
+  const nt = nextTerm();
+  const seasonFilter = `<div class="filter seg"><button aria-pressed="${!vac}" data-act="gridSeason" data-id="term">학기 중</button><button aria-pressed="${vac}" data-act="gridSeason" data-id="vac">방학 중${nt?` · ${esc(nt.name)} ${fmtMD(nt.start)}~${fmtMD(nt.end)}`:''}</button></div>`;
+  const vacNote = vac && !S.terms.length ? `<div class="notice" style="margin-bottom:10px">방학 기간이 아직 없어요. ‘아이·학원 관리’에서 방학 기간을 넣으면 그 기간에는 오늘 화면·알람도 방학 시간표로 바뀝니다.</div>` : '';
+  return `${seasonFilter}${kidFilter()}${whoFilter}${vacNote}<div class="panel-h"><h2>${vac?'방학 중 시간표':'학기 중 시간표'}</h2><div class="chips">${legend}</div></div>
+    <p class="muted small" style="margin:0 0 10px">${lanes>1?`요일 칸 안에서 왼쪽부터 ${kids.map(k=>esc(k.name)).join(', ')} 순서예요. `:''}옅은 칸은 셔틀 타고 오가는 시간, 점선 줄은 하교, 굵은 이름은 데리러 가는 사람이에요.${S.gridWho!=='all'?` 지금은 ${esc(S.gridWho)} 담당만 진하게 보여요.`:''}</p>
+    <div class="gwrap"><div class="ggrid" style="grid-template-columns:44px repeat(${days.length}, minmax(${lanes>1?Math.min(240, 66*lanes):84}px, 1fr))">${axis}${cols}</div></div>`;
+}
+
+function viewPay(){
+  const ym = S.payMonth;
+  const items = payItems(ym);
+  const amt = i => feeInfo(i.c, i.ym).amt;
+  const total = items.reduce((s,i)=>s+amt(i),0);
+  const paid = items.filter(i=>i.st.key==='paid').reduce((s,i)=>s+amt(i),0);
+  const byKid = sortedKids().map(k => {
+    const ks = items.filter(i=>i.c.kidId===k.id); const t = ks.reduce((s,i)=>s+amt(i),0);
+    return ks.length ? `<div class="row"><span class="kidtag" style="--kc:var(--${k.color||'k1'})"><span class="dot"></span>${esc(k.name)}</span><div class="main muted small">${ks.length}곳</div><span class="amt">${won(t)}</span></div>` : '';
+  }).join('');
+  const groups = {};
+  items.forEach(i => { const k = payKey(i.c); (groups[k] ||= {t:0, auto:0, n:0}); groups[k].t += amt(i); groups[k].n++; if (i.c.payAuto) groups[k].auto++; });
+  const byMethod = Object.entries(groups).sort((a,b)=>b[1].t-a[1].t).map(([k,g]) => `<div class="row"><div class="main"><div class="title">${esc(k)}</div><div class="sub">${g.n}곳${g.auto?` · 자동 ${g.auto}곳`:''}</div></div><span class="amt">${won(g.t)}</span></div>`).join('');
+  const [y,m] = ym.split('-');
+  return `<div class="grid2">
+    <section class="panel"><div class="panel-h"><div class="monthnav"><button class="btn ghost" data-act="month" data-n="-1" aria-label="이전 달">‹</button><h2>${y}년 ${Number(m)}월 학원비</h2><button class="btn ghost" data-act="month" data-n="1" aria-label="다음 달">›</button></div></div>
+      ${items.length?`<div class="list">${items.map(it=>payRow(it)).join('')}</div>`:`<div class="empty">이 달에 낼 학원비가 없습니다.</div>`}</section>
+    <div class="stack">
+      <section class="panel"><div class="sum"><div><div class="lab">이달 합계</div><div class="val">${won(total)}</div></div><div><div class="lab">납부 완료</div><div class="val">${won(paid)}</div></div><div><div class="lab">남은 금액</div><div class="val">${won(total-paid)}</div></div></div>
+        <div class="meter" role="img" aria-label="납부 진행률"><i style="width:${total?Math.round(paid/total*100):0}%"></i></div></section>
+      <section class="panel"><div class="panel-h"><h3>결제수단별</h3><span class="muted small">카드값·통장 잔액 확인용</span></div><div class="list">${byMethod||'<div class="muted small">등록된 학원이 없습니다.</div>'}</div></section>
+      <section class="panel"><div class="panel-h"><h3>아이별 학원비</h3></div><div class="list">${byKid||'<div class="muted small">등록된 학원이 없습니다.</div>'}</div></section>
+      <p class="muted small">‘회당 단가’ 학원은 그 달 수업 요일 수에서 휴일과 ‘학원휴강’ 일정을 빼고 계산합니다. 학원 청구서와 금액이 다르면 금액을 눌러 그 달만 고칠 수 있어요. ‘납부’를 누르면 그때 금액으로 기록됩니다.</p>
+    </div></div>`;
+}
+
+function viewEvents(){
+  const tdy = ymd(TODAY), f = S.evFilter || 'all';
+  const pass = e => f==='all' || (f==='hw' ? isHw(e) : f==='fam' ? isFam(e) : !isHw(e) && !isFam(e));
+  const late = S.evAll.filter(e => isHw(e) && !e.repeat && !e.done && e.date < tdy && pass(e)).sort((a,b)=>a.date.localeCompare(b.date));
+  // 반복 숙제는 앞으로 2주까지만 펼쳐서 목록이 길어지지 않게
+  const up = S.evAll.filter(e => pass(e) && (S.showPast || e.date >= tdy) && (!e.repeat || dayDiff(parse(e.date), TODAY) <= 7)).sort((a,b)=>a.date.localeCompare(b.date));
+  const groups = {};
+  up.forEach(e => (groups[e.date] ||= []).push(e));
+  const body = Object.keys(groups).map(d => `<div class="kidblock"><div class="kidname">${fmtMD(d)} <span class="muted small">${(()=>{const n=dayDiff(parse(d),TODAY);return n===0?'오늘':n===1?'내일':n>0?`${n}일 뒤`:`${-n}일 전`;})()}</span></div><div class="list">${groups[d].sort(evSort).map(e=>evRow(e)).join('')}</div></div>`).join('');
+  const chip = (k, label) => `<button aria-pressed="${f===k}" data-act="evFilter" data-id="${k}">${label}</button>`;
+  return `<section class="panel"><div class="panel-h"><h2>준비물·숙제</h2>
+      <div class="btns"><button class="btn pri" data-act="newEv">추가</button><button class="btn" data-act="newHw">학원 숙제 추가</button><button class="btn" data-act="ai" ${S.sample?'':'hidden'}>가정통신문·숙제 안내로 한 번에 넣기</button></div></div>
+      <div class="filter">${chip('all','모두')}${chip('hw','숙제만')}${chip('school','학교 일정·준비물')}${chip('fam','가족·생활')}</div>
+      ${late.length && !S.showPast ? `<div class="kidblock"><div class="kidname warn-text">아직 안 한 숙제 <span class="muted small">${late.length}개 · 기한 지남</span></div><div class="list">${late.map(e=>evRow(e,{when:true})).join('')}</div></div>` : ''}
+      ${S.hwrules.length && f !== 'school' ? `<p class="small muted" style="margin:0 0 8px">매주 반복 숙제는 앞으로 일주일 것만 보여요.</p>` : ''}
+      ${body || `<div class="empty">다가오는 준비물·숙제가 없습니다. 학원 숙제는 ‘학원 숙제 추가’나 오늘 화면의 학원 옆 ‘숙제’ 버튼으로 넣을 수 있어요.</div>`}
+      ${S.hwrules.length && f !== 'school' ? `<div class="kidblock"><div class="kidname">매주 반복 숙제 <span class="muted small">${S.hwrules.length}개</span></div><div class="list">${S.hwrules.map(r => {
+        const c = S.classes.find(x => x.id === r.classId);
+        const when = r.mode === 'class' && c ? `${esc(c.name)} 수업 날마다 (${WEEK_ORDER.filter(d=>(c.days||[]).includes(d)).map(d=>DOW[d]).join('·')})` : `매주 ${WEEK_ORDER.filter(d=>(r.days||[]).includes(d)).map(d=>DOW[d]).join('·')}`;
+        return `<div class="row"><span class="bar" style="--kc:${kc(r.kidId)}"></span><div class="main"><div class="title">${c?`<span class="muted">${esc(c.name)} ·</span> `:''}${esc(r.title)}</div><div class="sub">${esc(kidName(r.kidId))} · ${when}${r.note?' · '+esc(r.note):''}</div></div><button class="btn ghost small" data-act="editRule" data-id="${r.id}">수정</button></div>`; }).join('')}</div></div>` : ''}
+      <div style="margin-top:14px"><button class="btn ghost small" data-act="past">${S.showPast?'지난 일정 숨기기':'지난 일정도 보기'}</button></div></section>`;
+}
+
+function viewSetup(){
+  const kids = sortedKids();
+  return `<div class="stack">
+    <div class="panel-h" style="margin:0"><h2>설정 · 아이·학원 관리</h2><button class="btn ghost small" data-tab-go="home">← 오늘로 돌아가기</button></div>
+    <section class="panel"><div class="panel-h"><h2>데리러 가는 가족</h2></div>
+      <form class="form" id="fam"><label>쉼표로 구분해서 적어 주세요<input id="fam-list" value="${esc(family().join(', '))}" placeholder="엄마, 아빠, 할머니"></label>
+      <div class="btns"><button type="submit" class="btn">저장</button><span class="small muted">하교·학원 픽업 담당을 고를 때 이 이름들이 나와요.</span></div></form></section>
+    <section class="panel"><div class="panel-h"><h2>방학 기간</h2><button class="btn pri" data-act="newTerm">방학 추가</button></div>
+      ${S.terms.length ? `<div class="list">${[...S.terms].sort((a,b)=>a.start.localeCompare(b.start)).map(t => { const now = ymd(TODAY) >= t.start && ymd(TODAY) <= t.end, past = t.end < ymd(TODAY);
+        return `<div class="row ${past?'done':''}"><div class="main"><div class="title">${esc(t.name)} ${now?'<span class="pill soon">지금 방학</span>':''}</div><div class="sub">${fmtMD(t.start)} ~ ${fmtMD(t.end)} · 개학 ${fmtMD(ymd(addDays(parse(t.end),1)))} · ${t.kidId?esc(kidName(t.kidId)):'모든 아이'}</div></div><button class="btn ghost small" data-act="editTerm" data-id="${t.id}">수정</button></div>`; }).join('')}</div>`
+        : `<div class="empty">여름·겨울방학 기간을 넣으면 그 기간에는 하교 대신 방학 일정, 학원도 방학 시간표로 바뀌어 보여요.</div>`}</section>
+    <section class="panel"><div class="panel-h"><h2>아이</h2><button class="btn pri" data-act="newKid">아이 등록</button></div>
+      ${kids.length?`<div class="list">${kids.map(k=>`<div class="row"><span class="dot" style="--kc:var(--${k.color||'k1'})"></span><div class="main"><div class="title">${esc(k.name)}</div><div class="sub">${esc(k.school||'')}${(k.dismiss||[]).length?' · 하교 '+(k.dismiss||[]).map(x=>`${DOW[x.d]} ${esc(x.time)}${x.who?'('+esc(x.who)+')':''}`).join(', '):' · 하교 시간 미입력'}</div></div><button class="btn ghost small" data-act="editKid" data-id="${k.id}">수정</button></div>`).join('')}</div>`:'<div class="empty">아이를 등록해 주세요.</div>'}</section>
+    <section class="panel"><div class="panel-h"><h2>학원</h2><button class="btn pri" data-act="newClass" ${kids.length?'':'disabled'}>학원 추가</button></div>
+      ${kids.map(k => { const cs = S.classes.filter(c=>c.kidId===k.id); return `<div class="kidblock"><div class="kidname" style="--kc:var(--${k.color||'k1'})"><span class="dot"></span>${esc(k.name)}</div>
+        ${cs.length?`<div class="list">${cs.map(c=>`<div class="row"><div class="main"><div class="title">${esc(c.name)} ${c.active===false?'<span class="pill later">쉬는 중</span>':''}${SEASON_LABEL[c.season]?` <span class="pill ${c.season==='vac'?'soon':'type'}">${SEASON_LABEL[c.season]}</span>`:''}</div>
+          <div class="sub">${esc(timeText(c))} · ${c.feeType==='none' ? '학원비 따로 없음' : `매월 ${esc(c.payDay)}일 <span class="amt">${c.feeType==='session'?'회당 ':''}${won(c.fee)}</span>`}${payLabel(c)}${c.contact?' · '+esc(c.contact):''}</div></div>
+          <button class="btn ghost small" data-act="editClass" data-id="${c.id}">수정</button></div>`).join('')}</div>`:'<div class="muted small">등록된 학원이 없습니다.</div>'}</div>`; }).join('')}</section>
+    <section class="panel"><div class="panel-h"><h2>계정</h2></div>
+      <div class="row"><div class="main"><div class="title">${esc(S.authUser?.displayName||'')}</div><div class="sub">${esc(S.authUser?.email||'')} 로 로그인했어요</div></div><button class="btn" data-act="logout">로그아웃</button></div>
+      <p class="small muted">가족 계정을 더 추가하려면 Firebase 보안 규칙에 이메일을 넣어야 해요.</p></section>
+    <section class="panel"><div class="panel-h"><h2>예전 알림장 데이터 가져오기</h2></div>
+      <p class="small muted" style="margin-top:0">Claude 알림장에서 내보낸 <b>기존데이터.json</b> 파일을 골라 [가져오기]를 누르세요. 한 번만 하면 돼요. 같은 항목은 덮어써요.</p>
+      <div class="btns"><input type="file" id="imp-file" accept=".json,application/json"><button class="btn pri" data-act="importRun">가져오기</button></div>
+      <div class="small muted" id="imp-st"></div></section>
+  </div>`;
+}
+
+/* ---------- 폼 ---------- */
+function openModal(title, html, save){
+  document.getElementById('mTitle').textContent = title;
+  document.getElementById('mBody').innerHTML = html;
+  S.save = save;
+  document.getElementById('modal').hidden = false;
+  document.querySelector('#mBody input, #mBody select, #mBody textarea')?.focus();
+}
+function closeModal(){ document.getElementById('modal').hidden = true; S.save = null; S.ai?.ctl?.abort(); S.ai = null; }
+const val = id => document.getElementById(id)?.value.trim() ?? '';
+const kidOptions = (sel, allowCommon) => (allowCommon?`<option value="">공통 (모든 아이)</option>`:'') + sortedKids().map(k=>`<option value="${k.id}" ${k.id===sel?'selected':''}>${esc(k.name)}</option>`).join('');
+const delBtn = (kind,id) => id ? `<button type="button" class="btn danger" data-act="del" data-kind="${kind}" data-id="${id}">삭제</button>` : '';
+const formFoot = (kind,id) => `<div class="btns" style="justify-content:space-between"><span>${delBtn(kind,id)}</span><span class="btns"><button type="button" class="btn" data-act="close">취소</button><button type="submit" class="btn pri">저장</button></span></div>`;
+
+function kidForm(id){
+  const k = kidById(id) || {color: KC[S.kids.length % KC.length]};
+  openModal(id?'아이 정보 수정':'아이 등록', `<form class="form" id="f">
+    <label>이름<input id="k-name" required value="${esc(k.name||'')}" placeholder="예: 민준"></label>
+    <label>학교·학년<input id="k-school" value="${esc(k.school||'')}" placeholder="예: 한빛초 4학년 2반"></label>
+    <div><div class="small muted" style="margin-bottom:6px">색깔</div><div class="swatches">${KC.map(c=>`<label><input type="radio" name="k-color" value="${c}" ${k.color===c?'checked':''}><span style="--kc:var(--${c})"></span></label>`).join('')}</div></div>
+    <fieldset class="fs"><legend>하교 시간 · 데리러 가는 사람</legend>
+      <label>하교 장소<input id="k-dplace" value="${esc(k.dismissPlace||'')}" placeholder="예: 학교 후문 / 돌봄교실 앞"></label>
+      ${[1,2,3,4,5,6].map(d => { const x = (k.dismiss||[]).find(y=>y.d===d) || {}; return `<div class="dayrow"><span class="dlab">${DOW[d]}</span><label>하교<input type="time" id="k-t${d}" value="${esc(x.time||'')}"></label><label>데리러<select id="k-w${d}">${whoOptions(x.who||'')}</select></label></div>`; }).join('')}
+      <div class="small muted">하교 시간을 비워 둔 요일은 표시하지 않아요. 바로 학원으로 가면 ‘다음 학원으로 이동’을 고르세요.</div>
+    </fieldset>
+    <fieldset class="fs"><legend>방학 중 · 돌봄·방과후 끝나는 시간</legend>
+      <label>데리러 가는 곳<input id="k-vplace" value="${esc(k.vacPlace||'')}" placeholder="예: 학교 돌봄교실 / 지역아동센터 (집에 있으면 비워 두기)"></label>
+      ${[1,2,3,4,5,6].map(d => { const x = (k.vacDismiss||[]).find(y=>y.d===d) || {}; return `<div class="dayrow"><span class="dlab">${DOW[d]}</span><label>끝나는 시간<input type="time" id="k-vt${d}" value="${esc(x.time||'')}"></label><label>데리러<select id="k-vw${d}">${whoOptions(x.who||'')}</select></label></div>`; }).join('')}
+      <div class="small muted">방학에 집에 있거나 학원만 가는 요일은 비워 두세요. 방학 기간은 ‘아이·학원 관리’ 맨 위에서 정합니다.</div>
+    </fieldset>
+    ${formFoot('kids',id)}</form>`, async () => {
+      const dismiss = [1,2,3,4,5,6].map(d => ({d, time:val('k-t'+d), who:val('k-w'+d)})).filter(x => x.time);
+      const vacDismiss = [1,2,3,4,5,6].map(d => ({d, time:val('k-vt'+d), who:val('k-vw'+d)})).filter(x => x.time);
+      const data = {name:val('k-name'), school:val('k-school'), color:document.querySelector('[name=k-color]:checked')?.value||'k1', dismiss, dismissPlace:val('k-dplace'), vacDismiss, vacPlace:val('k-vplace')};
+      if (!data.name) throw new Error('이름을 입력해 주세요.');
+      if (id) await S.db.doc('kids/'+id).update(data); else await S.db.collection('kids').add({...data, order:Date.now()});
+    });
+}
+function classForm(id, preset){
+  const c = preset || S.classes.find(x=>x.id===id) || {days:[], start:'16:00', end:'17:00', payDay:1, since:ymOf(TODAY), active:true, kidId:sortedKids()[0]?.id};
+  const from = preset?._from ? S.classes.find(x => x.id === preset._from) : null;
+  openModal(from ? `${c.name} · 방학 시간표 만들기` : id?'학원 정보 수정':'학원 추가', `<form class="form" id="f">
+    ${from ? `<div class="notice">‘${esc(from.name)}’을 복사했어요. 방학 때 바뀌는 요일·시간·셔틀·픽업만 고치고 저장하세요. 저장하면 원래 시간표는 ‘학기 중만’으로 바뀌어요.</div>` : ''}
+    <label>아이<select id="c-kid">${kidOptions(c.kidId)}</select></label>
+    <label>학원 이름<input id="c-name" required value="${esc(c.name||'')}" placeholder="예: 해법수학"></label>
+    <label>다니는 기간<select id="c-season"><option value="both" ${!c.season||c.season==='both'?'selected':''}>학기·방학 모두 같음</option><option value="term" ${c.season==='term'?'selected':''}>학기 중만</option><option value="vac" ${c.season==='vac'?'selected':''}>방학 중만 (방학 특강·방학 시간표)</option></select></label>
+    ${id && (!c.season || c.season==='both') ? `<div class="btns"><button type="button" class="btn small" data-act="vacCopy" data-id="${id}">방학 때 시간이 달라요 → 방학 시간표 따로 만들기</button></div>` : ''}
+    <div><div class="small muted" style="margin-bottom:6px">수업 요일</div><div class="days">${WEEK_ORDER.map(d=>`<label><input type="checkbox" id="c-d${d}" ${(c.days||[]).includes(d)?'checked':''}>${DOW[d]}</label>`).join('')}</div></div>
+    <label>수업 시간<select id="c-timemode"><option value="same" ${!hasEach(c)?'selected':''}>모든 요일 같은 시간</option><option value="each" ${hasEach(c)?'selected':''}>요일마다 다른 시간</option></select></label>
+    <label class="check"><input type="checkbox" id="c-shuttle" ${c.shuttle?'checked':''}> 셔틀 타요</label>
+    <div class="two shut-only"><label>타는 곳<input id="c-rplace" value="${esc(c.ridePlace||'')}" placeholder="예: 아파트 정문"></label><label>내리는 곳<input id="c-bplace" value="${esc(c.backPlace||'')}" placeholder="예: 상가 앞 (같으면 비워 두기)"></label></div>
+    <div class="four" id="c-same"><label>수업 시작<input type="time" id="c-start" value="${esc(c.start)}"></label><label>수업 끝<input type="time" id="c-end" value="${esc(c.end)}"></label>
+      <label class="shut-only">셔틀 타는 시간<input type="time" id="c-ride" value="${esc(c.ride||'')}"></label><label class="shut-only">돌아오는 시간<input type="time" id="c-back" value="${esc(c.back||'')}"></label></div>
+    <div class="form" id="c-each">${WEEK_ORDER.map(d=>{ const t = (Array.isArray(c.times) && c.times.find(x=>x.d===d)) || {}; return `<div class="dayrow" id="c-row${d}"><span class="dlab">${DOW[d]}</span><label>시작<input type="time" id="c-s${d}" value="${esc(t.start||c.start||'')}"></label><label>끝<input type="time" id="c-e${d}" value="${esc(t.end||c.end||'')}"></label>
+        <label class="shut-only">셔틀 탑승<input type="time" id="c-r${d}" value="${esc(t.ride||c.ride||'')}"></label><label class="shut-only">돌아옴<input type="time" id="c-b${d}" value="${esc(t.back||c.back||'')}"></label></div>`; }).join('')}
+      <div class="small muted" id="c-each-empty">위에서 수업 요일을 먼저 골라 주세요.</div></div>
+    <fieldset class="fs"><legend>데리러 가는 사람</legend>
+      <div class="small muted shut-only">셔틀이면 내리는 곳에서, 아니면 학원 앞에서 기다리는 사람이에요.</div>
+      ${WEEK_ORDER.map(d=>`<div class="dayrow" id="c-wrow${d}"><span class="dlab">${DOW[d]}</span><label>데리러<select id="c-w${d}">${whoOptions(slot(c,d).who)}</select></label></div>`).join('')}
+      <div class="small muted" id="c-w-empty">수업 요일을 고르면 요일별로 정할 수 있어요.</div>
+    </fieldset>
+    <label>학원비 계산 방식<select id="c-feetype"><option value="monthly" ${!c.feeType||c.feeType==='monthly'?'selected':''}>매달 같은 금액</option><option value="session" ${c.feeType==='session'?'selected':''}>회당 단가 × 그 달 수업일수</option><option value="none" ${c.feeType==='none'?'selected':''}>따로 없음 (원래 학원비에 포함)</option></select></label>
+    <div class="two"><label>금액(원) — 월 금액 또는 회당 단가<input id="c-fee" inputmode="numeric" value="${esc(c.fee||'')}" placeholder="320000 또는 40000"></label><label>매월 납부일<input id="c-payday" type="number" min="1" max="31" value="${esc(c.payDay)}"></label></div>
+    <div class="two"><label>납부 유형<select id="c-paytype"><option value="계좌" ${c.payType!=='카드'?'selected':''}>계좌</option><option value="카드" ${c.payType==='카드'?'selected':''}>카드</option></select></label>
+      <label>납부 방식<select id="c-payauto"><option value="0" ${!c.payAuto?'selected':''}>직접 납부</option><option value="1" ${c.payAuto?'selected':''}>자동으로 나감 (자동이체·정기결제)</option></select></label></div>
+    <label>어느 카드 / 어느 계좌에서<input id="c-payfrom" value="${esc(c.payFrom||'')}" placeholder="예: 신한카드 / 국민 생활비통장 (끝 4자리 1234)"></label>
+    <label>학원 입금계좌 (직접 계좌이체일 때)<input id="c-payto" value="${esc(c.payTo||'')}" placeholder="예: 우리 1002-123-456789 ○○학원"></label>
+    <div class="small muted">카드번호 전체나 비밀번호는 적지 마세요. 카드 이름이나 끝 4자리면 충분합니다.</div>
+    <label>연락처·메모<input id="c-contact" value="${esc(c.contact||'')}" placeholder="예: 담당 선생님 010-…"></label>
+    <label>수업 메모 (오늘 화면에 표시)<input id="c-memo" value="${esc(c.memo||'')}" placeholder="예: 셔틀 15:40 아파트 정문"></label>
+    <div class="two"><label>납부 시작월<input type="month" id="c-since" value="${esc(c.since||ymOf(TODAY))}"></label>
+      <label>상태<select id="c-active"><option value="1" ${c.active!==false?'selected':''}>다니는 중</option><option value="0" ${c.active===false?'selected':''}>쉬는 중</option></select></label></div>
+    ${formFoot('classes',id)}</form>`, async () => {
+      const days = WEEK_ORDER.filter(d=>document.getElementById('c-d'+d).checked), each = val('c-timemode')==='each';
+      const shuttle = document.getElementById('c-shuttle').checked;
+      const times = each ? days.map(d => ({d, start:val('c-s'+d), end:val('c-e'+d), ride: shuttle?val('c-r'+d):'', back: shuttle?val('c-b'+d):''})) : [];
+      if (times.some(t => !t.start || !t.end || t.start >= t.end)) throw new Error('요일별 시작·끝 시간을 확인해 주세요.');
+      const pick = days.map(d => ({d, who:val('c-w'+d)})).filter(x => x.who);
+      const data = {kidId:val('c-kid'), name:val('c-name'), days, times, pick, shuttle,
+        ridePlace: shuttle?val('c-rplace'):'', backPlace: shuttle?(val('c-bplace')||val('c-rplace')):'',
+        ride: shuttle && !each ? val('c-ride') : '', back: shuttle && !each ? val('c-back') : '',
+        start: each ? (times[0]?.start||'') : val('c-start'), end: each ? (times[0]?.end||'') : val('c-end'), feeType:val('c-feetype'), fee:Number(val('c-fee').replace(/[^\d]/g,''))||0, payDay:Math.min(31,Math.max(1,Number(val('c-payday'))||1)),
+        payType:val('c-paytype'), payAuto:val('c-payauto')==='1', payFrom:val('c-payfrom'), payTo:val('c-payto'), payMethod:'', contact:val('c-contact'), memo:val('c-memo'), since:val('c-since'), active:val('c-active')==='1', season:val('c-season')};
+      if (!data.name) throw new Error('학원 이름을 입력해 주세요.');
+      if (id) await S.db.doc('classes/'+id).update(data); else await S.db.collection('classes').add(data);
+      if (from && data.season === 'vac' && (!from.season || from.season === 'both')) await S.db.doc('classes/'+from.id).update({season:'term'});
+    });
+  syncTimes();
+}
+// 예전 데이터 파일: {collections: {이름: [{id, data}, ...]}}
+const IMPORT_COLS = ['kids','classes','payments','events','settings','terms','pickups','hwrules','hwdone','notices'];
+async function importRun(btn){
+  const f = document.getElementById('imp-file')?.files?.[0], st = document.getElementById('imp-st');
+  if (!f){ st.textContent = '먼저 기존데이터.json 파일을 골라 주세요.'; return; }
+  let json; try { json = JSON.parse(await f.text()); } catch { st.textContent = '파일을 읽지 못했어요. 기존데이터.json이 맞는지 확인해 주세요.'; return; }
+  const writes = [];
+  IMPORT_COLS.forEach(c => (json?.collections?.[c] || []).forEach(d => { if (d && d.id && d.data && typeof d.data === 'object') writes.push([c, String(d.id), d.data]); }));
+  if (!writes.length){ st.textContent = '가져올 내용이 없어요.'; return; }
+  if (!btn.classList.contains('armed')){ btn.classList.add('armed'); btn.textContent = `${writes.length}개 항목 가져오기 (한 번 더 누르기)`; return; }
+  btn.disabled = true; st.textContent = '가져오는 중…';
+  try {
+    for (let i = 0; i < writes.length; i += 400){
+      const batch = fs.batch();
+      writes.slice(i, i + 400).forEach(([c, id, data]) => batch.set(fs.collection(c).doc(id), data));
+      await batch.commit();
+    }
+    st.textContent = `${writes.length}개 항목을 가져왔어요.`; toast('예전 데이터를 가져왔어요.');
+  } catch(e){ st.textContent = '가져오지 못했어요: ' + (e.code || e.message); }
+  finally { btn.disabled = false; btn.classList.remove('armed'); btn.textContent = '가져오기'; }
+}
+function noticeForm(id){
+  const n = S.notices.find(x => x.id === id); if (!n) return;
+  openModal('공지 수정', `<form class="form" id="f">
+    <label>내용<textarea id="ne-text" style="min-height:100px">${esc(n.text)}</textarea></label>
+    <div class="two"><label>기간 시작 (선택)<input type="date" id="ne-start" value="${esc(n.start||'')}"></label><label>기간 끝 (선택)<input type="date" id="ne-end" value="${esc(n.end||'')}"></label></div>
+    <label class="check"><input type="checkbox" id="ne-pin" ${n.pinned?'checked':''}> 중요 (맨 위에 고정)</label>
+    <div class="small muted">끝 날짜를 비우면 계속 보여요. 오늘 끝내려면 끝 날짜를 오늘로 두세요.</div>
+    ${formFoot('notices', n.by && n.by === S.uid ? id : null)}</form>`, async () => {
+      const data = {text:val('ne-text').slice(0,1000), start:val('ne-start'), end:val('ne-end'), pinned:document.getElementById('ne-pin').checked};
+      if (!data.text) throw new Error('내용을 적어 주세요.');
+      if (data.start && data.end && data.start > data.end) throw new Error('기간 끝 날짜가 시작보다 빨라요.');
+      await S.db.doc('notices/'+id).update(data);
+    });
+}
+function termForm(id){
+  const t = S.terms.find(x => x.id === id) || {name: TODAY.getMonth() >= 8 || TODAY.getMonth() <= 1 ? '겨울방학' : '여름방학', kidId:''};
+  openModal(id ? '방학 기간 수정' : '방학 추가', `<form class="form" id="f">
+    <label>이름<input id="t-name" required value="${esc(t.name||'')}" placeholder="예: 겨울방학"></label>
+    <div class="two"><label>방학 시작 (방학식 다음 날)<input type="date" id="t-start" value="${esc(t.start||'')}"></label><label>방학 끝 (개학 전날)<input type="date" id="t-end" value="${esc(t.end||'')}"></label></div>
+    <label>누구<select id="t-kid">${kidOptions(t.kidId, true)}</select></label>
+    <div class="small muted">아이들 학교가 달라 방학이 다르면 아이별로 따로 넣어 주세요. 가정통신문의 학사일정에 나와 있어요.</div>
+    ${formFoot('terms', id)}</form>`, async () => {
+      const data = {name:val('t-name'), start:val('t-start'), end:val('t-end'), kidId:val('t-kid')};
+      if (!data.name || !data.start || !data.end) throw new Error('이름과 시작·끝 날짜를 넣어 주세요.');
+      if (data.start > data.end) throw new Error('끝 날짜가 시작 날짜보다 빨라요.');
+      if (id) await S.db.doc('terms/'+id).update(data); else await S.db.collection('terms').add(data);
+    });
+}
+// 학원 폼: 시간 방식과 고른 요일에 맞춰 입력칸을 보이거나 숨긴다
+function syncTimes(){
+  const mode = document.getElementById('c-timemode'); if (!mode) return;
+  const each = mode.value === 'each';
+  document.getElementById('c-same').hidden = each;
+  document.getElementById('c-each').hidden = !each;
+  let any = false;
+  WEEK_ORDER.forEach(d => { const on = document.getElementById('c-d'+d).checked; any ||= on; document.getElementById('c-row'+d).hidden = !on; document.getElementById('c-wrow'+d).hidden = !on; });
+  document.getElementById('c-each-empty').hidden = any;
+  document.getElementById('c-w-empty').hidden = any;
+  const sh = document.getElementById('c-shuttle').checked;
+  document.querySelectorAll('#mBody .shut-only').forEach(el => el.hidden = !sh);
+}
+document.addEventListener('change', ev => { if (/^c-(d\d|timemode|shuttle)$/.test(ev.target.id)) syncTimes(); });
+document.addEventListener('change', ev => {
+  if (ev.target.id !== 'n-me') return;
+  S.me = ev.target.value; try { localStorage.setItem('me', S.me); } catch {}
+  const draft = val('n-text'), pin = document.getElementById('n-pin')?.checked;
+  render();
+  if (document.getElementById('n-text')){ document.getElementById('n-text').value = draft; document.getElementById('n-pin').checked = !!pin; }
+});
+// 그날만 픽업 담당 바꾸기: 원래 담당으로 되돌리면 변경 기록을 지운다
+document.addEventListener('change', async ev => {
+  const t = ev.target; if (!t.classList || !t.classList.contains('whosel')) return;
+  const {date, key, base} = t.dataset, ref = S.db.doc('pickups/' + date + '_' + key);
+  t.disabled = true;
+  try {
+    if (t.value === base) await ref.delete();
+    else await ref.set({date, key, who:t.value, by:S.uid||'', at:new Date().toISOString()});
+    toast(`${fmtMD(date)} 데리러 가는 사람: ${t.value || '미정'}. 가족 모두에게 보여요.`);
+  } catch(e){ toast(errMsg(e)); render(); }
+  finally { t.disabled = false; }
+});
+// 준비물·일정·숙제 폼. 새 숙제는 '이번 한 번'과 '매주 반복'을 고른다. ruleId가 있으면 반복 숙제 규칙을 고친다.
+function eventForm(id, preset, ruleId){
+  const r = ruleId ? S.hwrules.find(x => x.id === ruleId) : null;
+  const e = r ? {...r, date:r.start} : (S.events.find(x=>x.id===id) || preset || {date:ymd(addDays(TODAY,1)), type:'준비물', kidId:''});
+  const hw = isHw(e), canRepeat = !id;
+  const title = r ? '매주 반복 숙제 수정' : id ? (hw?'숙제 수정':'일정 수정') : (hw?'숙제 추가':isFam(e)?'가족·생활 일정 추가':'준비물·일정 추가');
+  openModal(title, `<form class="form" id="f">
+    ${canRepeat ? `<div class="filter seg hw-only" role="radiogroup" aria-label="반복">
+      <label class="segopt"><input type="radio" name="e-rep" value="once" ${r?'':'checked'} ${r?'disabled':''}><span>이번 한 번</span></label>
+      <label class="segopt"><input type="radio" name="e-rep" value="weekly" ${r?'checked':''}><span>매주 반복</span></label></div>` : ''}
+    <label>내용<input id="e-title" required value="${esc(e.title||'')}" placeholder="${hw?'예: 단어 30개 외우기, 워크북 p.12~15':isFam(e)?'예: 둘째 예방접종, 할머니 생신 저녁':'예: 현장체험학습 도시락'}"></label>
+    <div class="two"><label><span id="e-date-lab">날짜 (숙제는 내는 날)</span><input type="date" id="e-date" value="${esc(e.date||ymd(TODAY))}"></label><label>종류<select id="e-type">${r ? ['학원숙제','학교숙제'].map(t=>`<option ${t===e.type?'selected':''}>${t}</option>`).join('') : typeOptions(e.type)}</select></label></div>
+    <div class="two nonhw-only"><label>시간 (선택)<input type="time" id="e-time" value="${esc(e.time||'')}"></label><label>장소 (선택)<input id="e-place" value="${esc(e.place||'')}" placeholder="예: ○○소아과, 할머니 댁"></label></div>
+    <label>누구<select id="e-kid">${kidOptions(e.kidId,true).replace('공통 (모든 아이)','가족 전체·공통')}</select></label>
+    <label>학원 (학원숙제·학원휴강일 때)<select id="e-class"><option value="">선택 안 함</option>${S.classes.map(c=>`<option value="${c.id}" ${c.id===e.classId?'selected':''}>${esc(kidName(c.kidId))} · ${esc(c.name)}</option>`).join('')}</select></label>
+    <fieldset class="fs rep-only"><legend>언제 내나요</legend>
+      <label>반복 방법<select id="e-mode"><option value="class" ${e.mode!=='days'?'selected':''}>그 학원 수업 날마다 (휴강·방학이면 건너뜀)</option><option value="days" ${e.mode==='days'?'selected':''}>요일 골라서</option></select></label>
+      <div class="days" id="e-days">${WEEK_ORDER.map(d=>`<label><input type="checkbox" id="e-rd${d}" ${(e.days||[]).includes(d)?'checked':''}>${DOW[d]}</label>`).join('')}</div>
+    </fieldset>
+    <label>메모<input id="e-note" value="${esc(e.note||'')}" placeholder="${hw?'예: 단어 시험 있음':'예: 물, 돗자리, 9시까지 등교'}"></label>
+    ${r ? `<div class="btns" style="justify-content:space-between"><button type="button" class="btn danger" data-act="del" data-kind="hwrules" data-id="${r.id}">반복 그만하기</button><span class="btns"><button type="button" class="btn" data-act="close">취소</button><button type="submit" class="btn pri">저장</button></span></div>` : formFoot('events',id)}</form>`, async () => {
+      const type = val('e-type'), classId = CLASS_TYPES.includes(type) ? val('e-class') : '';
+      const kidId = classId ? (S.classes.find(c=>c.id===classId)?.kidId || '') : val('e-kid');
+      const weekly = r || document.querySelector('[name=e-rep]:checked')?.value === 'weekly';
+      if (!val('e-title')) throw new Error('내용을 입력해 주세요.');
+      if (weekly && isHw({type})){
+        const mode = classId ? val('e-mode') : 'days';
+        const days = WEEK_ORDER.filter(d => document.getElementById('e-rd'+d).checked);
+        if (mode === 'days' && !days.length) throw new Error('숙제 내는 요일을 골라 주세요.');
+        const data = {type, kidId, classId, title:val('e-title'), note:val('e-note'), mode, days, start:val('e-date')||ymd(TODAY)};
+        if (r) await S.db.doc('hwrules/'+r.id).update(data); else await S.db.collection('hwrules').add(data);
+        return;
+      }
+      const data = {title:val('e-title'), date:val('e-date'), type, kidId, note:val('e-note'), classId, time: isHw({type}) ? '' : val('e-time'), place: isHw({type}) ? '' : val('e-place')};
+      if (!data.date) throw new Error('날짜를 입력해 주세요.');
+      if (id) await S.db.doc('events/'+id).update(data); else await S.db.collection('events').add({...data, done:false});
+    });
+  syncEv();
+}
+// 숙제일 때만 반복 선택을, 매주 반복일 때만 요일·방법을 보여 준다
+function syncEv(){
+  const type = document.getElementById('e-type'); if (!type) return;
+  const hw = isHw({type:type.value}), rep = document.querySelector('[name=e-rep]:checked');
+  const weekly = hw && rep?.value === 'weekly';
+  document.querySelectorAll('#mBody .hw-only').forEach(el => el.hidden = !hw);
+  document.querySelectorAll('#mBody .nonhw-only').forEach(el => el.hidden = hw);
+  const cls = document.getElementById('e-class'); if (cls) cls.closest('label').hidden = !CLASS_TYPES.includes(type.value);
+  document.querySelectorAll('#mBody .rep-only').forEach(el => el.hidden = !weekly);
+  const hasClass = !!val('e-class') && type.value === '학원숙제';
+  const mode = document.getElementById('e-mode');
+  if (mode){ mode.closest('label').hidden = !hasClass; document.getElementById('e-days').hidden = hasClass && mode.value === 'class'; }
+  document.getElementById('e-date-lab').textContent = weekly ? '언제부터' : '날짜 (숙제는 내는 날)';
+}
+document.addEventListener('change', ev => { if (/^e-(type|class|mode)$/.test(ev.target.id) || ev.target.name === 'e-rep') syncEv(); });
+
+function adjustForm(cid, ym){
+  const c = S.classes.find(x=>x.id===cid); if (!c) return;
+  const p = S.payments[payId(cid,ym)];
+  const auto = c.feeType==='session' ? sessionDates(c,ym) : null;
+  const autoAmt = auto ? auto.length*(Number(c.fee)||0) : Number(c.fee)||0;
+  openModal(`${c.name} · ${Number(ym.slice(5))}월 금액`, `<form class="form" id="f">
+    <div class="notice">${auto ? `자동 계산: 수업 ${auto.length}회 × ${won(c.fee)} = <b>${won(autoAmt)}</b><br><span class="small">${auto.map(s=>Number(s.slice(8))+'일').join(', ')||'수업일 없음'}</span>` : `기본 월 금액: <b>${won(autoAmt)}</b>`}</div>
+    ${S.sample ? `<label>학원 청구 문자·웹 내용 붙여넣기 (선택)<textarea id="a-bill" style="min-height:90px" placeholder="예: [○○학원] 11월 교육비 7회 140,000원 납부 부탁드립니다"></textarea></label>
+    <div class="btns"><button type="button" class="btn" data-act="billRead" data-id="${cid}" data-ym="${ym}" id="a-read">청구 금액 찾기</button><span id="a-st" class="small muted"></span></div>` : ''}
+    <label>이 달에 낼 금액(원)<input id="a-amt" inputmode="numeric" value="${esc(p?.override ?? autoAmt)}"></label>
+    <div class="btns" style="justify-content:space-between"><span>${p?.override!=null?`<button type="button" class="btn" data-act="adjReset" data-id="${cid}" data-ym="${ym}">자동 계산으로 되돌리기</button>`:''}</span>
+      <span class="btns"><button type="button" class="btn" data-act="close">취소</button><button type="submit" class="btn pri">저장</button></span></div></form>`, async () => {
+      const n = Number(val('a-amt').replace(/[^\d]/g,''));
+      if (!val('a-amt')) throw new Error('금액을 입력해 주세요.');
+      await S.db.doc('payments/'+payId(cid,ym)).set({classId:cid, month:ym, override:n, billNote:val('a-bill').slice(0,500)});
+    });
+}
+async function billRead(cid, ym){
+  const text = val('a-bill'), st = document.getElementById('a-st'), btn = document.getElementById('a-read');
+  if (!text){ st.textContent = '청구 문자나 웹 화면 내용을 먼저 붙여 넣어 주세요.'; return; }
+  const c = S.classes.find(x=>x.id===cid);
+  btn.disabled = true; st.textContent = '읽는 중…';
+  try {
+    const r = await S.sample.json(`학원 교육비 청구 문자/웹 내용에서 이번에 낼 총 금액을 찾아 줘. 학원: ${c?.name||''}, 대상 월: ${ym}.
+JSON 객체로만 답한다: {"amount": 숫자(원, 쉼표 없이) 또는 null, "sessions": 수업 횟수 숫자 또는 null, "due": "YYYY-MM-DD" 또는 null}
+여러 금액이 있으면 최종 납부 총액(교재비 등 포함)을 고른다.
+---
+${text.slice(0,4000)}`, {modelTier:'quick'});
+    if (r && Number(r.amount) > 0){
+      document.getElementById('a-amt').value = Math.round(Number(r.amount));
+      st.textContent = `${won(r.amount)}${r.sessions?` · ${r.sessions}회`:''}${r.due?` · 납부기한 ${fmtMD(r.due)}`:''} — 맞으면 저장을 누르세요.`;
+    } else st.textContent = '금액을 찾지 못했어요. 직접 입력해 주세요.';
+  } catch(e){ st.textContent = e?.code==='not_granted' ? 'Claude 사용이 허락되지 않았어요. 금액을 직접 입력해 주세요.' : '읽지 못했어요. 금액을 직접 입력해 주세요.'; }
+  finally { btn.disabled = false; }
+}
+
+/* ---------- 가정통신문 → 일정 (Claude) ---------- */
+async function aiForm(){
+  const caps = await S.sample.limits().catch(()=>null);
+  S.ai = {imgs:!!caps?.images};
+  openModal('가정통신문으로 한 번에 넣기', `<div class="form">
+    <div class="notice">가정통신문·알림장·학원 공지 내용을 붙여 넣으세요${S.ai.imgs?'. 사진을 올려도 됩니다':''}. 날짜·준비물·제출물을 뽑아 확인할 수 있게 보여 드립니다.</div>
+    <label>내용<textarea id="ai-text" placeholder="예: 10월 24일(금) 가을 현장체험학습 … 도시락, 물, 돗자리 지참"></textarea></label>
+    ${S.ai.imgs?`<label>사진 (선택)<input type="file" id="ai-img" accept="${(caps.images.mediaTypes||[]).join(',')}" multiple></label>`:''}
+    <label>기본 아이 (내용에 이름이 없을 때)<select id="ai-kid">${kidOptions('',true)}</select></label>
+    <div class="btns"><button class="btn pri" data-act="aiRun" id="ai-run">일정 뽑기</button><button class="btn" data-act="aiStop" id="ai-stop" hidden>멈추기</button></div>
+    <div id="ai-status" class="small muted"></div><div id="ai-out" class="ai-out"></div></div>`, null);
+}
+async function aiRun(){
+  const text = val('ai-text'); const files = document.getElementById('ai-img')?.files;
+  if (!text && !files?.length){ toast('내용을 붙여 넣거나 사진을 올려 주세요.'); return; }
+  const st = document.getElementById('ai-status'), run = document.getElementById('ai-run'), stop = document.getElementById('ai-stop');
+  const ctl = new AbortController(); S.ai.ctl = ctl;
+  run.disabled = true; stop.hidden = false; st.textContent = '읽는 중… (처음 한 번은 Claude 사용 허락을 묻습니다)';
+  const kids = sortedKids().map(k=>`${k.name}${k.school?` (${k.school})`:''}`).join(', ') || '없음';
+  const prompt = `한국 초·중학교 가정통신문/알림장/학원 공지에서 날짜가 있는 일정을 뽑아 줘.
+오늘은 ${ymd(TODAY)} (${DOW[TODAY.getDay()]}요일)이다. 연도가 없으면 오늘 이후 가장 가까운 날짜로 해석한다.
+아이 목록: ${kids}
+행사, 준비물, 제출 마감, 시험, 상담, 휴업일·방학을 모두 뽑는다. 준비물이 행사에 딸린 경우 행사 날짜에 두고 note에 준비물을 적는다. 기간 행사는 시작일 하나로 두고 note에 기간을 적는다.
+학사일정표라면 방학식·개학식은 학교행사로, 재량휴업일·공휴일 대체 휴업은 휴일로 넣고, 방학 기간은 vacations에 따로 넣는다. 방학 start는 방학식 다음 날, end는 개학 전날이다.
+JSON 객체로만 답한다. 형식: {"events":[{"date":"YYYY-MM-DD","title":"20자 이내 제목","type":"학교행사|준비물|학교숙제|학원숙제|시험|상담|제출|휴일|기타","kid":"아이 이름 또는 공통","note":"시간·장소·준비물 한 줄"}],"vacations":[{"name":"여름방학|겨울방학|봄방학 등","start":"YYYY-MM-DD","end":"YYYY-MM-DD"}]}
+없으면 빈 배열로 답한다.
+---
+${text.slice(0,12000) || '(첨부한 사진의 내용을 읽어 줘)'}`;
+  try {
+    const opts = {signal:ctl.signal, modelTier:'default'};
+    if (files?.length) opts.images = [...files].slice(0,4);
+    const arr = await S.sample.json(prompt, opts);
+    const def = val('ai-kid');
+    const evs = Array.isArray(arr) ? arr : (Array.isArray(arr?.events) ? arr.events : []);
+    const isD = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s));
+    const vacs = (Array.isArray(arr?.vacations) ? arr.vacations : []).filter(v => v && isD(v.start) && isD(v.end) && v.start <= v.end)
+      .map(v => ({name:String(v.name||'방학').slice(0,20), start:v.start, end:v.end, kidId:def}));
+    S.ai.vacs = vacs;
+    const items = evs.filter(x=>x && /^\d{4}-\d{2}-\d{2}$/.test(String(x.date))).map(x => {
+      const nm = String(x.kid||''); const k = S.kids.find(k => nm && (nm.includes(k.name) || k.name.includes(nm)));
+      return {date:String(x.date), title:String(x.title||'').slice(0,60), type:EV_TYPES.includes(x.type)?x.type:'기타', note:String(x.note||'').slice(0,200), kidId:k?k.id:def};
+    });
+    S.ai.items = items;
+    st.textContent = items.length || vacs.length ? `일정 ${items.length}건${vacs.length?`, 방학 ${vacs.length}건`:''}을 찾았어요. 넣을 것만 남기고 추가하세요.` : '날짜가 있는 일정을 찾지 못했어요.';
+    document.getElementById('ai-out').innerHTML = vacs.map((v,i)=>`<label><input type="checkbox" id="ai-v${i}" checked><span><b>방학 기간</b> ${esc(v.name)} <span class="pill soon">${fmtMD(v.start)} ~ ${fmtMD(v.end)}</span><br><span class="small muted">${esc(v.kidId?kidName(v.kidId):'모든 아이')} · 이 기간엔 방학 시간표로 바뀌어요</span></span></label>`).join('')
+      + items.map((x,i)=>`<label><input type="checkbox" id="ai-i${i}" checked><span><b>${fmtMD(x.date)}</b> ${esc(x.title)} <span class="pill type">${esc(x.type)}</span><br><span class="small muted">${esc(kidName(x.kidId))}${x.note?' · '+esc(x.note):''}</span></span></label>`).join('')
+      + (items.length||vacs.length?`<div class="btns"><button class="btn pri" data-act="aiAdd">선택한 항목 추가</button></div>`:'');
+  } catch(e){
+    const msg = {cancelled:'멈췄습니다.', not_granted:'Claude 사용이 허락되지 않아 이 기능을 쓸 수 없어요.', sampling_disabled:'이 계정에서는 Claude를 쓸 수 없어요.', rate_limited:'요청이 많아요. 잠시 뒤 다시 해 주세요.', invalid_json:'결과를 읽지 못했어요. 다시 눌러 주세요.', image_rejected:'사진을 읽지 못했어요. 다른 사진으로 해 주세요.', prompt_too_large:'내용이 너무 길어요. 나눠서 넣어 주세요.'}[e?.code] || '정리하지 못했어요. 다시 시도해 주세요.';
+    st.textContent = msg;
+  } finally { run.disabled = false; stop.hidden = true; }
+}
+async function aiAdd(){
+  const pick = (S.ai.items||[]).filter((_,i)=>document.getElementById('ai-i'+i)?.checked);
+  for (const x of pick) await S.db.collection('events').add({...x, done:false});
+  const vp = (S.ai.vacs||[]).filter((_,i)=>document.getElementById('ai-v'+i)?.checked);
+  for (const v of vp){
+    const same = S.terms.find(t => t.start === v.start && t.end === v.end && (t.kidId||'') === v.kidId);
+    if (!same) await S.db.collection('terms').add(v);
+  }
+  closeModal(); toast(`일정 ${pick.length}건${vp.length?`, 방학 ${vp.length}건`:''}을 추가했어요.`);
+}
+
+/* ---------- 이벤트 ---------- */
+let toastT;
+function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(()=>t.hidden=true, 2600); }
+const errMsg = e => e?.message && !e.code ? e.message : (e?.code==='invalid_argument' ? '저장 권한이 없어요. 알림장 주인에게 편집 권한을 받아 주세요.' : '저장하지 못했어요. 잠시 뒤 다시 해 주세요.');
+
+document.addEventListener('submit', async ev => {
+  if (ev.target.id === 'nf'){
+    ev.preventDefault();
+    const text = val('n-text'), from = val('n-me');
+    if (!from){ toast('‘나는’에서 누구인지 골라 주세요.'); return; }
+    if (!text){ toast('알릴 내용을 적어 주세요.'); return; }
+    const start = val('n-start'), end = val('n-end');
+    if (start && end && start > end){ toast('기간 끝 날짜가 시작보다 빨라요.'); return; }
+    try {
+      await S.db.collection('notices').add({text:text.slice(0,1000), from, by:S.uid||'', at:new Date().toISOString(), pinned:document.getElementById('n-pin').checked, acks:{}, start, end});
+      ['n-text','n-start','n-end'].forEach(i => document.getElementById(i).value = ''); toast('공지를 올렸어요. 가족 모두에게 보여요.');
+    } catch(e){ toast(errMsg(e)); }
+    return;
+  }
+  if (ev.target.id === 'fam'){
+    ev.preventDefault();
+    const list = [...new Set(val('fam-list').split(/[,，]/).map(s => s.trim()).filter(Boolean))].slice(0, 8);
+    if (!list.length){ toast('이름을 한 명 이상 적어 주세요.'); return; }
+    try { await S.db.doc('settings/family').set({caregivers:list}); toast('가족 목록을 저장했어요.'); } catch(e){ toast(errMsg(e)); }
+    return;
+  }
+  if (ev.target.id !== 'f') return;
+  ev.preventDefault();
+  try { await S.save?.(); closeModal(); toast('저장했어요.'); } catch(e){ toast(errMsg(e)); }
+});
+document.getElementById('modal').addEventListener('click', ev => { if (ev.target.id === 'modal') closeModal(); });
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !document.getElementById('modal').hidden) closeModal(); });
+
+document.addEventListener('click', async ev => {
+  const go = ev.target.closest('[data-tab],[data-tab-go]');
+  if (go){ if (go.dataset.season) S.gridSeason = go.dataset.season; S.tab = go.dataset.tab || go.dataset.tabGo; try{localStorage.setItem('tab',S.tab)}catch{} render(); window.scrollTo({top:0}); return; }
+  const b = ev.target.closest('[data-act]'); if (!b) return;
+  const {act, id} = b.dataset;
+  try {
+    switch (act){
+      case 'close': closeModal(); break;
+      case 'newKid': kidForm(); break;
+      case 'editKid': kidForm(id); break;
+      case 'newClass': classForm(); break;
+      case 'editClass': classForm(id); break;
+      case 'newEv': eventForm(); break;
+      case 'newFam': eventForm(null, {type:'가족일정', kidId:'', date:ymd(addDays(TODAY,2))}); break;
+      case 'editEv': eventForm(id); break;
+      case 'editRule': eventForm(null, null, id); break;
+      case 'ai': aiForm(); break;
+      case 'aiRun': aiRun(); break;
+      case 'aiStop': S.ai?.ctl?.abort(); break;
+      case 'aiAdd': await aiAdd(); break;
+      case 'weekKid': S.weekKid = id; render(); break;
+      case 'gridWho': S.gridWho = id; render(); break;
+      case 'homeDay': S.homeDay = Number(id); render(); break;
+      case 'evFilter': S.evFilter = id; render(); break;
+      case 'nAck': await S.db.doc('notices/'+id).update(new firebase.firestore.FieldPath('acks', S.me), new Date().toISOString()); toast('확인했다고 표시했어요.'); break;
+      case 'logout': await auth.signOut(); break;
+      case 'importRun': await importRun(b); break;
+      case 'nPast': S.showPastN = !S.showPastN; render(); break;
+      case 'nEdit': noticeForm(id); break;
+      case 'nPin': { const n = S.notices.find(x=>x.id===id); await S.db.doc('notices/'+id).update({pinned:!n?.pinned}); break; }
+      case 'hwAdd': { const c = S.classes.find(x=>x.id===id); if (c) eventForm(null, {type:'학원숙제', classId:c.id, kidId:c.kidId, date:nextClassDate(c, parse(b.dataset.day||ymd(TODAY)))}); break; }
+      case 'newHw': { const c = activeClasses()[0]; eventForm(null, {type:'학원숙제', classId:c?.id||'', kidId:c?.kidId||'', date: c ? nextClassDate(c, TODAY) : ymd(addDays(TODAY,1))}); break; }
+      case 'resetWho': await S.db.doc('pickups/'+id).delete(); toast('원래 담당으로 되돌렸어요.'); break;
+      case 'gridSeason': S.gridSeason = id; render(); break;
+      case 'newTerm': termForm(); break;
+      case 'editTerm': termForm(id); break;
+      case 'vacCopy': { const o = S.classes.find(x=>x.id===id); if (o) classForm(null, {...o, id:undefined, season:'vac', feeType:'none', name:o.name, _from:o.id}); break; }
+      case 'past': S.showPast = !S.showPast; render(); break;
+      case 'month': S.payMonth = addMonths(S.payMonth, Number(b.dataset.n)); render(); break;
+      case 'toggleEv': if (id.startsWith('R_')) {
+          const e = S.evAll.find(x => x.id === id), ref = S.db.doc('hwdone/' + e.rule + '_' + e.date);
+          if (e.done) await ref.delete(); else await ref.set({rule:e.rule, date:e.date, by:S.uid||''});
+          break;
+        } else { const e = S.events.find(x=>x.id===id); await S.db.doc('events/'+id).update({done:!e?.done, doneBy:!e?.done ? (S.uid||'') : ''}); break; }
+      case 'pay': { const c = S.classes.find(x=>x.id===id), ym = b.dataset.ym, p = S.payments[payId(id,ym)];
+        await S.db.doc('payments/'+payId(id,ym)).set({classId:id, month:ym, amount:feeInfo(c,ym).amt, paidAt:ymd(new Date()), paidBy:S.uid||'', ...(p?.override!=null?{override:p.override}:{})});
+        toast(`${c?.name||''} 납부 완료로 기록했어요. 가족 모두에게 보입니다.`); break; }
+      case 'unpay': { const ref = S.db.doc('payments/'+payId(id,b.dataset.ym)), p = S.payments[payId(id,b.dataset.ym)];
+        if (p?.override!=null) await ref.set({classId:id, month:b.dataset.ym, override:p.override}); else await ref.delete();
+        toast('납부 기록을 취소했어요.'); break; }
+      case 'adjust': adjustForm(id, b.dataset.ym); break;
+      case 'billRead': billRead(id, b.dataset.ym); break;
+      case 'copy': navigator.clipboard.writeText(b.dataset.text).then(() => toast('입금계좌를 복사했어요.'), () => toast(b.dataset.text)); break;
+      case 'adjReset': { await S.db.doc('payments/'+payId(id,b.dataset.ym)).delete(); closeModal(); toast('자동 계산 금액으로 되돌렸어요.'); break; }
+      case 'del': {
+        if (!b.classList.contains('armed')){ b.classList.add('armed'); b.textContent = '한 번 더 누르면 삭제'; return; }
+        const kind = b.dataset.kind;
+        if (kind==='kids' && S.classes.some(c=>c.kidId===id)){ toast('이 아이의 학원을 먼저 삭제해 주세요.'); return; }
+        await S.db.doc(kind+'/'+id).delete(); closeModal(); toast('삭제했어요.'); break;
+      }
+    }
+  } catch(e){ toast(errMsg(e)); }
+});
+
+/* ---------- 시작 ---------- */
+try { const t = localStorage.getItem('tab'); if (t) S.tab = t; } catch {}
+/* Firebase: 구글 로그인 + Firestore. 보안 규칙에 등록된 가족 이메일만 읽고 쓸 수 있다. */
+const firebaseConfig = {
+  apiKey: "AIzaSyBR6oK_j6h29kXUJBQ3UWxhcpzn-hoCzuA",
+  authDomain: "sweet-home-8ccf2.firebaseapp.com",
+  projectId: "sweet-home-8ccf2",
+  storageBucket: "sweet-home-8ccf2.firebasestorage.app",
+  messagingSenderId: "1072204291925",
+  appId: "1:1072204291925:web:e3cbe309f4914c223c19dc"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth(), fs = firebase.firestore();
+const gate = document.getElementById('gate');
+function showGate(msg, isErr){
+  gate.hidden = false; document.querySelector('.wrap').hidden = true;
+  document.getElementById('gateMsg').textContent = msg || '';
+  document.getElementById('gateMsg').className = isErr ? 'gate-err' : 'muted small';
+  document.getElementById('gateOut').hidden = !auth.currentUser;
+  document.getElementById('gateIn').hidden = !!auth.currentUser;
+}
+document.getElementById('gateIn').onclick = async () => {
+  const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:'select_account'});
+  try { await auth.signInWithPopup(p); }
+  catch(e){
+    if (['auth/popup-blocked','auth/operation-not-supported-in-this-environment','auth/cancelled-popup-request'].includes(e.code)) await auth.signInWithRedirect(p);
+    else if (e.code !== 'auth/popup-closed-by-user') showGate('로그인하지 못했어요. 다시 눌러 주세요. (' + e.code + ')', true);
+  }
+};
+document.getElementById('gateOut').onclick = () => auth.signOut();
+auth.getRedirectResult().catch(e => showGate('로그인하지 못했어요. (' + e.code + ')', true));
+
+let unsubs = [];
+auth.onAuthStateChanged(async user => {
+  unsubs.forEach(u => u()); unsubs = []; S.loaded = new Set();
+  if (!user){ showGate('가족으로 등록된 구글 계정으로 로그인해 주세요.'); return; }
+  S.db = fs; S.uid = user.uid; S.authUser = user;
+  // 등록 안 된 계정이면 보안 규칙이 막아서 여기서 실패한다
+  try { await fs.doc('members/' + user.uid).set({name:user.displayName||'', email:user.email||'', at:new Date().toISOString()}, {merge:true}); }
+  catch(e){ showGate(`${user.email} 계정은 가족으로 등록되어 있지 않아요. 등록된 계정으로 다시 로그인해 주세요.`, true); return; }
+  gate.hidden = true; document.querySelector('.wrap').hidden = false;
+  render();
+  const sub = (name, fn) => unsubs.push(fs.collection(name).onSnapshot(s => { fn(s.docs.map(d => ({id:d.id, ...d.data()}))); S.loaded.add(name); render(); }, () => toast('일부 내용을 불러오지 못했어요. 새로고침해 주세요.')));
+  unsubs.push(fs.collection('members').onSnapshot(s => { s.docs.forEach(d => S.names[d.id] = d.data().name || ''); render(); }, () => {}));
+  sub('kids', a => S.kids = a);
+  sub('classes', a => S.classes = a);
+  sub('payments', a => S.payments = Object.fromEntries(a.map(p => [p.id, p])));
+  sub('events', a => S.events = a);
+  sub('settings', a => S.family = a.find(x => x.id==='family')?.caregivers || null);
+  sub('pickups', a => S.pickups = Object.fromEntries(a.map(p => [p.id, p])));
+  sub('hwrules', a => S.hwrules = a);
+  sub('notices', a => S.notices = a);
+  sub('hwdone', a => S.hwdone = Object.fromEntries(a.map(p => [p.id, p])));
+  sub('terms', a => { S.terms = a; if (S.gridSeason == null) S.gridSeason = S.kids.some(k => isVac(k.id, ymd(TODAY))) || a.some(t => !t.kidId && ymd(TODAY) >= t.start && ymd(TODAY) <= t.end) ? 'vac' : 'term'; });
+});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
